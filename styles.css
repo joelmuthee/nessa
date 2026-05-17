@@ -231,17 +231,19 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   background: linear-gradient(180deg, rgba(26,23,20,0) 40%, rgba(26,23,20,0.45) 100%);
   pointer-events: none;
 }
-/* Bags tile: bag photo on a wide cream canvas (1500x900). The bag is
-   centred with plenty of horizontal padding so cover-cropping at any
-   tile aspect keeps the bag fully visible. Cover (default) lets the
-   image fill the tile like the Makeup/Styling tiles do, instead of
-   sitting small in the middle with cream around it. */
+/* Bags tile: side-by-side composed image with brand text + bag photo.
+   Use CONTAIN (not cover) - this image has text on the left edge and
+   the bag on the right edge, so any horizontal cropping eats either
+   the text or the bag. With contain the whole composition is always
+   visible and the image's cream background blends into the tile's
+   cream surface so any leftover canvas is invisible. */
 .tile-bags .tile-art {
   background-color: #fffdf8;
+  background-size: contain;
+  background-position: center center;
+  background-repeat: no-repeat;
 }
-.tile-bags .tile-art::after {
-  background: linear-gradient(180deg, rgba(26,23,20,0) 65%, rgba(26,23,20,0.30) 100%);
-}
+.tile-bags .tile-art::after { background: none; }
 .tile-body { padding: 26px 28px 28px; }
 .tile-eyebrow {
   font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase;
