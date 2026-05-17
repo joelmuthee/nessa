@@ -78,8 +78,7 @@ const WA_NUMBER = '254705044940';
         <div class="post-overlay">
           <h3 class="post-title">${escapeHtml(p.title)}</h3>
           <div class="post-actions">
-            <a class="post-btn post-btn-wa" href="${whatsappLink(p)}" target="_blank" rel="noopener" data-action="enquire" data-id="${p.id}">${waSvg()} Enquire</a>
-            <a class="post-btn" href="${escapeHtml(p.instagramUrl)}" target="_blank" rel="noopener" data-action="ig">${igSvg()} View on IG</a>
+            <a class="post-btn post-btn-ig" href="${escapeHtml(p.instagramUrl)}" target="_blank" rel="noopener" data-action="ig">${igSvg()} View on Instagram</a>
           </div>
         </div>
       </article>`;

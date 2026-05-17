@@ -363,6 +363,14 @@ img { display: block; max-width: 100%; }
 .post-btn-wa:hover { background: #1eb858; color: #fff; border-color: #1eb858; }
 .post-btn svg { width: 13px; height: 13px; fill: currentColor; }
 
+/* Single IG-only CTA on portfolio cards: paint the official IG gradient on
+   hover so the action reads as instantly familiar (per CATALOG-STANDARDS). */
+.post-btn-ig:hover {
+  background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
 @media (max-width: 560px) {
   /* On mobile, always show overlay since hover isn't reliable */
   .post-overlay { opacity: 1; background: linear-gradient(180deg, rgba(26,23,20,0) 40%, rgba(26,23,20,0.85) 100%); }
