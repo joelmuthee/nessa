@@ -440,6 +440,17 @@ img { display: block; max-width: 100%; }
     opacity: 1;
     transform: translateY(0);
   }
+  /* HUB page has no IntersectionObserver (no main.js loaded), so auto-fire
+     the about-strip + footer + section-title animations on load. The page
+     is short enough that the user sees the final state by the time they
+     scroll there. */
+  body.page-hub .section-title,
+  body.page-hub .about-grid > *,
+  body.page-hub .footer-brand,
+  body.page-hub .footer-links {
+    animation: fadeInUp 0.7s cubic-bezier(0.22,0.61,0.36,1) 0.5s forwards;
+  }
+  body.page-hub .about-grid > *:nth-child(2) { animation-delay: 0.62s; }
   /* Per-card stagger (capped at :nth-child(n+10)) */
   .post-card:nth-child(2) { transition-delay: 0.04s; }
   .post-card:nth-child(3) { transition-delay: 0.08s; }
