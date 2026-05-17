@@ -113,95 +113,60 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
 }
 .nav-cta:hover { background: var(--brass-deep); color: #fff !important; }
 .nav-ext { font-size: 11px; opacity: 0.6; }
+/* Real logo image inside the mobile menu (hidden on desktop) */
+.nav-mobile-logo { display: none; }
+
 @media (max-width: 760px) {
   .nav-inner { padding: 12px 20px; }
   .nav-toggle { display: inline-flex; position: relative; z-index: 220; }
 
-  /* Inline link row becomes a full-screen overlay menu */
+  /* Full-screen overlay menu. Solid ink (not rgba) per CATALOG-STANDARDS. */
   .nav-links {
     position: fixed;
     inset: 0;
-    background: var(--ink);    /* solid, NOT rgba(...,0.98) per CATALOG-STANDARDS */
+    background: #1a1714;
     z-index: 210;
-    display: flex;
+    display: none;
     flex-direction: column;
     align-items: stretch;
-    justify-content: flex-start;
-    gap: 0;
-    padding: 96px 28px 40px;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.28s cubic-bezier(0.22,0.61,0.36,1), visibility 0s 0.28s;
+    padding: 88px 28px 40px;
+    overflow-y: auto;
   }
-  body.nav-open .nav-links {
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 0.28s cubic-bezier(0.22,0.61,0.36,1), visibility 0s 0s;
-  }
+  body.nav-open .nav-links { display: flex; }
+  body.nav-open { overflow: hidden; }
 
-  /* Logo plate inside the overlay so it doesn't feel empty */
-  .nav-links::before {
-    content: '';
+  .nav-mobile-logo {
     display: block;
-    width: 96px; height: 96px;
-    margin: 0 auto 36px;
-    background: url('images/logo.png') center/contain no-repeat;
-    border-radius: 14px;
-    opacity: 0;
-    transform: scale(0.9);
-    transition: opacity 0.4s 0.06s, transform 0.4s 0.06s;
-  }
-  body.nav-open .nav-links::before {
-    opacity: 1;
-    transform: scale(1);
+    width: 88px; height: 88px;
+    margin: 0 auto 28px;
+    object-fit: contain;
+    flex-shrink: 0;
   }
 
-  /* Links: text-only, serif, generous spacing, brass underline on active.
-     Stagger their entrance for a touch of finesse. */
   .nav-links a {
     display: block;
     padding: 18px 0;
     text-align: center;
-    color: var(--brass-light);
-    font-family: var(--serif);
+    color: #e7d4ad;
+    font-family: 'Cormorant Garamond', Georgia, serif;
     font-size: 26px;
     font-weight: 500;
-    letter-spacing: 0.01em;
     line-height: 1.1;
     border-bottom: 1px solid rgba(231,212,173,0.10);
-    opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 0.32s cubic-bezier(0.22,0.61,0.36,1),
-                transform 0.32s cubic-bezier(0.22,0.61,0.36,1),
-                color 0.18s;
   }
   .nav-links a:first-of-type { border-top: 1px solid rgba(231,212,173,0.10); }
-  .nav-links a.active {
-    color: #fff;
-    position: relative;
-  }
+  .nav-links a.active { color: #fff; position: relative; }
   .nav-links a.active::after {
     content: '';
     position: absolute;
     left: 50%; bottom: 12px;
     width: 28px; height: 1.5px;
-    background: var(--brass);
+    background: #b88845;
     transform: translateX(-50%);
   }
-  body.nav-open .nav-links a {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  body.nav-open .nav-links a:nth-of-type(1) { transition-delay: 0.12s; }
-  body.nav-open .nav-links a:nth-of-type(2) { transition-delay: 0.16s; }
-  body.nav-open .nav-links a:nth-of-type(3) { transition-delay: 0.20s; }
-  body.nav-open .nav-links a:nth-of-type(4) { transition-delay: 0.24s; }
 
-  /* WhatsApp CTA hidden on mobile - the About + Footer already surface
-     it, and the mobile menu reads cleaner without a fourth row. */
+  /* WhatsApp CTA hidden on mobile per user request */
   .nav-cta { display: none !important; }
-
-  body.nav-open { overflow: hidden; }
 }
 
 /* ============ HERO ============ */
