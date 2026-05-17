@@ -220,7 +220,12 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   min-height: 460px;
   color: var(--ink);
 }
-.tile:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); color: var(--ink); }
+.tile:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
+.tile-stretch {
+  display: block;
+  color: inherit;
+}
+.tile-stretch .tile-art { cursor: pointer; }
 .tile-art {
   flex: 1; min-height: 280px;
   background: var(--line) center/cover no-repeat;
@@ -254,7 +259,17 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   font-size: 32px; font-weight: 500;
   margin-bottom: 10px; letter-spacing: -0.01em;
 }
-.tile-sub { font-size: 14.5px; color: var(--ink-soft); margin-bottom: 18px; line-height: 1.5; }
+.tile-sub { font-size: 14.5px; color: var(--ink-soft); margin-bottom: 22px; line-height: 1.5; }
+
+/* Actions row at the bottom of the tile body: primary 'See the work' CTA
+   on the left, WhatsApp Enquire pill on the right. */
+.tile-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .tile-cta {
   display: inline-block;
   font-size: 13.5px; font-weight: 600;
@@ -265,6 +280,23 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
 }
 .tile:hover .tile-cta { color: var(--brass-deep); border-color: var(--brass-deep); }
 .tile-cta .ext { font-size: 11px; opacity: 0.6; }
+
+.tile-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #25D366;
+  color: #fff !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 0;
+  transition: background 0.18s, transform 0.18s;
+}
+.tile-wa:hover { background: #1eb858; color: #fff !important; transform: translateY(-1px); }
+.tile-wa svg { width: 13px; height: 13px; }
 
 /* ============ ABOUT strip ============ */
 .about-strip {
