@@ -139,6 +139,14 @@ img { display: block; max-width: 100%; }
   background: linear-gradient(180deg, rgba(26,23,20,0) 40%, rgba(26,23,20,0.45) 100%);
   pointer-events: none;
 }
+/* Bags tile uses contain (not cover) so the full bag shows with breathing
+   room around it, the way a product photo should sit on a card. */
+.tile-bags .tile-art {
+  background-color: #fffdf8;
+  background-size: contain;
+  background-position: center center;
+}
+.tile-bags .tile-art::after { background: none; }
 .tile-body { padding: 26px 28px 28px; }
 .tile-eyebrow {
   font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase;
