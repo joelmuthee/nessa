@@ -78,7 +78,7 @@ def main():
         'whatsappNumber': '254705044940',
         'ownerName': 'Vanessa',
         'instagram': 'https://www.instagram.com/nessamakeupart/',
-        'thriftluxUrl': 'https://thriftlux.essenceautomations.com',
+        'thriftluxUrl': 'https://nessa.co.ke/thriftlux',
         'kalashaNomination': 'Kalasha Nominee 2022 - Best Costume Designer',
     }
     out = {'posts': posts, 'settings': settings}
