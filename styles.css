@@ -263,17 +263,18 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   background: linear-gradient(180deg, rgba(26,23,20,0) 40%, rgba(26,23,20,0.45) 100%);
   pointer-events: none;
 }
-/* Bags tile: the cover image is already composed as 16:9 landscape with
-   cream margins around the bag, so cover (default) works without
-   chopping the handle. Cream background only shows during the brief
-   moment before the JS sets background-image. */
+/* Bags tile: image is a vertically-stacked composition (text top, bag
+   bottom) baked at 1200x900. Use contain so the full composition is
+   ALWAYS visible at any tile aspect (cover was chopping the left edge
+   on narrower tiles). The image already has a cream background so any
+   leftover canvas blends in. */
 .tile-bags .tile-art {
   background-color: #fffdf8;
+  background-size: contain;
+  background-position: center center;
+  background-repeat: no-repeat;
 }
-.tile-bags .tile-art::after {
-  /* Lighter gradient over the landscape composite (the photo is bright) */
-  background: linear-gradient(180deg, rgba(26,23,20,0) 60%, rgba(26,23,20,0.30) 100%);
-}
+.tile-bags .tile-art::after { background: none; }
 .tile-body { padding: 26px 28px 28px; }
 .tile-eyebrow {
   font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase;
