@@ -47,7 +47,7 @@
       <a href="makeup.html">Makeup</a>
       <a href="styling.html">Styling</a>
       <a href="https://thriftlux.essenceautomations.com" target="_blank" rel="noopener">Bags <span class="nav-ext">&#x2197;</span></a>
-      <a href="https://wa.me/254705044940" class="nav-cta" target="_blank" rel="noopener">WhatsApp</a>
+      <a href="https://wa.me/254705044940?text=Hi%20Nessa%2C%20I%27m%20reaching%20out%20via%20your%20portfolio%20site.%20I%27d%20like%20to%20enquire%20about%20your%20services." class="nav-cta" target="_blank" rel="noopener">WhatsApp</a>
     </div>
   </div>
 </nav>
@@ -108,7 +108,7 @@
       </div>
 
       <p>When she&rsquo;s not on a shoot, she runs <a href="https://thriftlux.essenceautomations.com" target="_blank" rel="noopener">ThriftLux</a>, a hand-picked pre-loved designer handbag shop delivering across Kenya.</p>
-      <p>Want to book her? <a href="https://wa.me/254705044940" target="_blank" rel="noopener">Message on WhatsApp</a>.</p>
+      <p>Want to book her? <a href="https://wa.me/254705044940?text=Hi%20Nessa%2C%20I%27m%20reaching%20out%20via%20your%20portfolio%20site.%20I%27d%20like%20to%20enquire%20about%20your%20services." target="_blank" rel="noopener">Message on WhatsApp</a>.</p>
     </div>
   </div>
 </section>
@@ -201,7 +201,7 @@
       <p>Makeup &middot; Styling &middot; ThriftLux Bags</p>
     </div>
     <div class="footer-links">
-      <a href="https://wa.me/254705044940" target="_blank" rel="noopener">WhatsApp &middot; 0705 044 940</a>
+      <a href="https://wa.me/254705044940?text=Hi%20Nessa%2C%20I%27m%20reaching%20out%20via%20your%20portfolio%20site.%20I%27d%20like%20to%20enquire%20about%20your%20services." target="_blank" rel="noopener">WhatsApp &middot; 0705 044 940</a>
       <a href="https://www.instagram.com/nessamakeupart/" target="_blank" rel="noopener">Instagram &middot; @nessamakeupart</a>
       <a href="https://thriftlux.essenceautomations.com" target="_blank" rel="noopener">ThriftLux Bags &nbsp;&#x2197;</a>
     </div>
@@ -225,22 +225,17 @@
     links.addEventListener('click', e => { if (e.target.closest('a')) setOpen(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
   })();
-  // Tile cover images: pick a representative image from each gallery
-  fetch('data.json').then(r => r.json()).then(({posts}) => {
-    function findCover(category) {
-      const eligible = posts.filter(p => p.category === category || p.category === 'both');
-      return eligible.length ? eligible[0].image : null;
-    }
-    const cov = {
-      'makeup-cover': findCover('makeup'),
-      'styling-cover': findCover('styling'),
-      'bags-cover': 'images/bags-cover-v3.jpg',
-    };
-    document.querySelectorAll('[data-image]').forEach(el => {
-      const k = el.dataset.image;
-      if (cov[k]) el.style.backgroundImage = `url("${cov[k]}")`;
-    });
-  }).catch(() => {});
+  // Tile cover images: editorial 1500x900 composites built by .tmp/make_service_covers.py
+  // (for makeup/styling) and .tmp/make_landscape_bag.py (for bags).
+  const cov = {
+    'makeup-cover':  'images/makeup-cover.jpg',
+    'styling-cover': 'images/styling-cover.jpg',
+    'bags-cover':    'images/bags-cover-v3.jpg',
+  };
+  document.querySelectorAll('[data-image]').forEach(el => {
+    const k = el.dataset.image;
+    if (cov[k]) el.style.backgroundImage = `url("${cov[k]}")`;
+  });
 </script>
 </body>
 </html>
