@@ -197,26 +197,9 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   body.nav-open .nav-links a:nth-of-type(3) { transition-delay: 0.20s; }
   body.nav-open .nav-links a:nth-of-type(4) { transition-delay: 0.24s; }
 
-  /* WhatsApp CTA: ink-on-brass pill, pushed to the bottom of the overlay
-     where the thumb lives. No more clashing 'a' inheritance. */
-  .nav-cta {
-    margin-top: auto;
-    margin-left: auto; margin-right: auto;
-    background: var(--brass);
-    color: var(--ink) !important;
-    padding: 16px 32px !important;
-    font-family: var(--sans) !important;
-    font-size: 15px !important;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    border-radius: 999px;
-    border-top: 0 !important;
-    border-bottom: 0 !important;
-    min-width: 200px;
-    text-align: center;
-  }
-  .nav-cta::after { display: none !important; }
-  .nav-cta:hover { background: var(--brass-light); color: var(--ink) !important; }
+  /* WhatsApp CTA hidden on mobile - the About + Footer already surface
+     it, and the mobile menu reads cleaner without a fourth row. */
+  .nav-cta { display: none !important; }
 
   body.nav-open { overflow: hidden; }
 }
