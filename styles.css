@@ -42,11 +42,14 @@ img { display: block; max-width: 100%; }
 @media (max-width: 640px) { .container { padding: 0 20px; } }
 
 /* ============ NAV ============ */
+/* IMPORTANT: do NOT add backdrop-filter to .nav. Per CSS spec, any non-none
+   backdrop-filter makes the element a containing block for position:fixed
+   descendants, which traps the mobile menu overlay (.nav-links with
+   inset:0) inside the nav's ~88px height instead of filling the viewport.
+   Use a solid (or solid-ish) background instead. */
 .nav {
   position: sticky; top: 0; z-index: 200;
-  background: rgba(244,237,226,0.9);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .nav-inner {
