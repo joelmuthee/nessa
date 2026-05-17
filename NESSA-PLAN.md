@@ -2,11 +2,11 @@
 
 > **Apply the standards.** General patterns for hub sites, multi-service classification, and IG sourcing live in [`Website Designs/CATALOG-STANDARDS.md`](../CATALOG-STANDARDS.md) ("Multi-service owner — hub site pattern" + "Instagram quick-add — standard workflow"). This file holds only what's specific to Nessa.
 
-**Domain:** `nessa.essenceautomations.com` (subdomain of Joel's agency CF zone, Joel owns DNS)
+**Domain:** `nessa.co.ke` (subdomain of Joel's agency CF zone, Joel owns DNS)
 
 **Owner:** Vanessa ("Nessa"), the same person behind ThriftLux. Three service lines under one umbrella.
 
-**Status:** **LIVE** at [nessa.essenceautomations.com](https://nessa.essenceautomations.com) since 2026-05-17. Source on GitHub: [joelmuthee/nessa](https://github.com/joelmuthee/nessa).
+**Status:** **LIVE** at [nessa.co.ke](https://nessa.co.ke) since 2026-05-17. Source on GitHub: [joelmuthee/nessa](https://github.com/joelmuthee/nessa).
 
 ---
 
@@ -24,7 +24,7 @@ Single IG for makeup + styling: [@nessamakeupart](https://www.instagram.com/ness
 
 | Question | Choice |
 |---|---|
-| Domain | `nessa.essenceautomations.com` (subdomain pattern, see CATALOG-STANDARDS) |
+| Domain | `nessa.co.ke` (subdomain pattern, see CATALOG-STANDARDS) |
 | Categorisation | Read captions of most recent 150 posts and infer makeup vs styling. **IGNORE Highlights** — many are personal. |
 | CTA | WhatsApp to book, same number as ThriftLux: **0705 044 940**. No separate booking form for now. |
 | Refresh model | Live, incremental import — re-runnable workflow with `STOP_AT` checkpoint, same as ThriftLux |
@@ -65,7 +65,7 @@ Refine these against ~10 real captions before running on all 150. Items where ne
 3. **Worker + KV.** New `nessa-api` worker on the same CF account, new KV namespace, mirror ThriftLux's endpoint shape (`/api/posts` instead of `/api/bags`). Seed KV from the 150 scraped posts.
 4. **Hub home page.** Three-tile layout, hero, footer, OG meta.
 5. **Makeup gallery + Styling gallery.** Reuse ThriftLux gallery render (cards, lightbox, IG link, WhatsApp Enquire). Filter by `category` field on each page.
-6. **CF Pages deploy + DNS.** New CF Pages project, custom domain `nessa.essenceautomations.com`. Joel adds the CNAME on the agency zone.
+6. **CF Pages deploy + DNS.** New CF Pages project, custom domain `nessa.co.ke`. Joel adds the CNAME on the agency zone.
 7. **Workflow doc.** `workflows/nessa_ig_import.md` mirroring `thriftlux_instagram_import.md` plus the per-post classification step.
 
 ---

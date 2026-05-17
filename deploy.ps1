@@ -38,4 +38,4 @@ Write-Host "Deploying to Cloudflare Pages (project: nessa)..." -ForegroundColor 
 npx wrangler pages deploy . --project-name=nessa --branch=main --commit-dirty=true
 
 Write-Host ""
-Write-Host "Live at https://nessa.essenceautomations.com" -ForegroundColor Green
+Write-Host "Live at https://nessa.co.ke" -ForegroundColor Green

@@ -1,6 +1,6 @@
 # Nessa - Hub site
 
-**Live:** [nessa.essenceautomations.com](https://nessa.essenceautomations.com)
+**Live:** [nessa.co.ke](https://nessa.co.ke)
 
 Vanessa's portfolio: Makeup + Wardrobe Styling + ThriftLux Bags. Three lines of work, one phone number.
 
@@ -27,7 +27,7 @@ The GitHub -> CF Pages auto-deploy webhook on the `nessa` Pages project silently
 ./deploy.sh --skip-push
 ```
 
-Live: [nessa.essenceautomations.com](https://nessa.essenceautomations.com)
+Live: [nessa.co.ke](https://nessa.co.ke)
 
 ## Refreshing the gallery from IG
 

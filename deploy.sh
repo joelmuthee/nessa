@@ -33,4 +33,4 @@ echo "Deploying to Cloudflare Pages (project: nessa)..."
 npx wrangler pages deploy . --project-name=nessa --branch=main --commit-dirty=true
 
 echo ""
-echo "Live at https://nessa.essenceautomations.com"
+echo "Live at https://nessa.co.ke"
