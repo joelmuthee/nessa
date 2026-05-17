@@ -62,8 +62,8 @@ img { display: block; max-width: 100%; }
   color: var(--ink);
 }
 .brand-logo {
-  width: 44px; height: 44px;
-  border-radius: 8px;
+  width: 64px; height: 64px;
+  border-radius: 10px;
   object-fit: contain;
   background: var(--ink);
   padding: 4px;
@@ -71,7 +71,7 @@ img { display: block; max-width: 100%; }
 }
 .brand:hover .brand-logo { transform: scale(1.04); }
 @media (max-width: 640px) {
-  .brand-logo { width: 38px; height: 38px; padding: 3px; }
+  .brand-logo { width: 50px; height: 50px; padding: 3px; border-radius: 8px; }
 }
 .nav-links {
   display: flex; align-items: center; gap: 28px;
@@ -504,11 +504,19 @@ img { display: block; max-width: 100%; }
   margin-bottom: 36px;
 }
 @media (max-width: 700px) { .footer-inner { grid-template-columns: 1fr; gap: 28px; } }
+.footer-logo {
+  width: 88px; height: 88px;
+  border-radius: 12px;
+  display: block;
+  margin-bottom: 14px;
+  object-fit: contain;
+}
 .footer-mark {
   font-family: var(--serif); font-size: 32px; font-weight: 500;
   color: var(--brass-light); margin-bottom: 6px; letter-spacing: 0.02em;
 }
 .footer-brand p { color: #a09686; font-size: 14px; }
+@media (max-width: 700px) { .footer-logo { width: 72px; height: 72px; } }
 .footer-links { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
 .footer-links a { color: #d6cbb8; }
 .footer-links a:hover { color: var(--brass-light); }
