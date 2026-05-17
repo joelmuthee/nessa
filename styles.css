@@ -405,6 +405,8 @@ img { display: block; max-width: 100%; }
   color: #a09686;
   text-align: center;
 }
+.footer-credit { color: var(--brass); transition: color 0.18s; }
+.footer-credit:hover { color: var(--brass-light); }
 
 /* ============ FADE-IN-UP (per CATALOG-STANDARDS) ============ */
 @media (prefers-reduced-motion: no-preference) {
