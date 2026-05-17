@@ -231,18 +231,17 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   background: linear-gradient(180deg, rgba(26,23,20,0) 40%, rgba(26,23,20,0.45) 100%);
   pointer-events: none;
 }
-/* Bags tile: image is a vertically-stacked composition (text top, bag
-   bottom) baked at 1200x900. Use contain so the full composition is
-   ALWAYS visible at any tile aspect (cover was chopping the left edge
-   on narrower tiles). The image already has a cream background so any
-   leftover canvas blends in. */
+/* Bags tile: bag photo on a wide cream canvas (1500x900). The bag is
+   centred with plenty of horizontal padding so cover-cropping at any
+   tile aspect keeps the bag fully visible. Cover (default) lets the
+   image fill the tile like the Makeup/Styling tiles do, instead of
+   sitting small in the middle with cream around it. */
 .tile-bags .tile-art {
   background-color: #fffdf8;
-  background-size: contain;
-  background-position: center center;
-  background-repeat: no-repeat;
 }
-.tile-bags .tile-art::after { background: none; }
+.tile-bags .tile-art::after {
+  background: linear-gradient(180deg, rgba(26,23,20,0) 65%, rgba(26,23,20,0.30) 100%);
+}
 .tile-body { padding: 26px 28px 28px; }
 .tile-eyebrow {
   font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase;
