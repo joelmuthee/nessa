@@ -61,26 +61,26 @@ img { display: block; max-width: 100%; }
   display: none;
   width: 44px; height: 44px;
   background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 0;
   padding: 0;
   cursor: pointer;
   flex-direction: column;
   align-items: center; justify-content: center;
-  gap: 5px;
-  transition: background 0.18s, border-color 0.18s;
+  gap: 6px;
+  transition: opacity 0.18s;
 }
-.nav-toggle:hover { border-color: var(--brass); background: rgba(184,136,69,0.06); }
+.nav-toggle:hover { opacity: 0.7; }
 .nav-toggle span {
   display: block;
-  width: 20px; height: 2px;
+  width: 24px; height: 1.5px;
   background: var(--ink);
   border-radius: 1px;
-  transition: transform 0.28s cubic-bezier(0.22,0.61,0.36,1), opacity 0.18s;
+  transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), opacity 0.18s, background 0.18s;
 }
-body.nav-open .nav-toggle span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+body.nav-open .nav-toggle span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); }
 body.nav-open .nav-toggle span:nth-child(2) { opacity: 0; }
-body.nav-open .nav-toggle span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+body.nav-open .nav-toggle span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); }
+body.nav-open .nav-toggle span { background: var(--brass-light); }
 .brand {
   display: inline-flex;
   align-items: center;
@@ -115,51 +115,109 @@ body.nav-open .nav-toggle span:nth-child(3) { transform: translateY(-7px) rotate
 .nav-ext { font-size: 11px; opacity: 0.6; }
 @media (max-width: 760px) {
   .nav-inner { padding: 12px 20px; }
-  .nav-toggle { display: inline-flex; }
-  /* Hide the inline link row; turn it into a full-screen overlay menu */
+  .nav-toggle { display: inline-flex; position: relative; z-index: 220; }
+
+  /* Inline link row becomes a full-screen overlay menu */
   .nav-links {
     position: fixed;
     inset: 0;
     background: var(--ink);    /* solid, NOT rgba(...,0.98) per CATALOG-STANDARDS */
-    z-index: 210;              /* above nav (200) so the X is reachable */
+    z-index: 210;
     display: flex;
     flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 28px;
-    padding: 80px 24px 40px;
-    transform: translateY(-100%);
-    transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1);
-    pointer-events: none;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 96px 28px 40px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.28s cubic-bezier(0.22,0.61,0.36,1), visibility 0s 0.28s;
   }
   body.nav-open .nav-links {
-    transform: translateY(0);
-    pointer-events: auto;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.28s cubic-bezier(0.22,0.61,0.36,1), visibility 0s 0s;
   }
+
+  /* Logo plate inside the overlay so it doesn't feel empty */
+  .nav-links::before {
+    content: '';
+    display: block;
+    width: 96px; height: 96px;
+    margin: 0 auto 36px;
+    background: url('images/logo.png') center/contain no-repeat;
+    border-radius: 14px;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: opacity 0.4s 0.06s, transform 0.4s 0.06s;
+  }
+  body.nav-open .nav-links::before {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* Links: text-only, serif, generous spacing, brass underline on active.
+     Stagger their entrance for a touch of finesse. */
   .nav-links a {
+    display: block;
+    padding: 18px 0;
+    text-align: center;
     color: var(--brass-light);
     font-family: var(--serif);
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 500;
     letter-spacing: 0.01em;
+    line-height: 1.1;
+    border-bottom: 1px solid rgba(231,212,173,0.10);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.32s cubic-bezier(0.22,0.61,0.36,1),
+                transform 0.32s cubic-bezier(0.22,0.61,0.36,1),
+                color 0.18s;
   }
-  .nav-links a.active { color: #fff; }
-  .nav-links a:hover { color: #fff; }
+  .nav-links a:first-of-type { border-top: 1px solid rgba(231,212,173,0.10); }
+  .nav-links a.active {
+    color: #fff;
+    position: relative;
+  }
+  .nav-links a.active::after {
+    content: '';
+    position: absolute;
+    left: 50%; bottom: 12px;
+    width: 28px; height: 1.5px;
+    background: var(--brass);
+    transform: translateX(-50%);
+  }
+  body.nav-open .nav-links a {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  body.nav-open .nav-links a:nth-of-type(1) { transition-delay: 0.12s; }
+  body.nav-open .nav-links a:nth-of-type(2) { transition-delay: 0.16s; }
+  body.nav-open .nav-links a:nth-of-type(3) { transition-delay: 0.20s; }
+  body.nav-open .nav-links a:nth-of-type(4) { transition-delay: 0.24s; }
+
+  /* WhatsApp CTA: ink-on-brass pill, pushed to the bottom of the overlay
+     where the thumb lives. No more clashing 'a' inheritance. */
   .nav-cta {
-    margin-top: 8px;
+    margin-top: auto;
+    margin-left: auto; margin-right: auto;
     background: var(--brass);
     color: var(--ink) !important;
-    padding: 12px 28px !important;
-    font-size: 14px !important;
+    padding: 16px 32px !important;
     font-family: var(--sans) !important;
+    font-size: 15px !important;
     font-weight: 600;
     letter-spacing: 0.04em;
+    border-radius: 999px;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    min-width: 200px;
+    text-align: center;
   }
+  .nav-cta::after { display: none !important; }
   .nav-cta:hover { background: var(--brass-light); color: var(--ink) !important; }
-  /* The toggle has to sit ABOVE the open overlay so the user can close it */
-  .nav-toggle { position: relative; z-index: 220; }
-  body.nav-open .nav-toggle { border-color: rgba(231,212,173,0.4); }
-  body.nav-open .nav-toggle span { background: var(--brass-light); }
-  /* Prevent body scroll when menu is open */
+
   body.nav-open { overflow: hidden; }
 }
 
