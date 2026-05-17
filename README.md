@@ -1,6 +1,8 @@
 # Nessa - Hub site
 
-Vanessa's portfolio: Makeup + Wardrobe Styling + ThriftLux Bags. Hub site at [nessa.essenceautomations.com](https://nessa.essenceautomations.com).
+**Live:** [nessa.essenceautomations.com](https://nessa.essenceautomations.com)
+
+Vanessa's portfolio: Makeup + Wardrobe Styling + ThriftLux Bags. Three lines of work, one phone number.
 
 - **Hub home** (`index.html`) - 3-tile chooser, links Bags out to thriftlux.ke
 - **Makeup** (`makeup.html`) - gallery of makeup work, tap card -> IG post

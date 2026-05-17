@@ -6,7 +6,7 @@
 
 **Owner:** Vanessa ("Nessa"), the same person behind ThriftLux. Three service lines under one umbrella.
 
-**Status:** spec only. Drafted 2026-05-17 while the IG scrape was paused so we could ship the like-pill feature on ThriftLux first.
+**Status:** **LIVE** at [nessa.essenceautomations.com](https://nessa.essenceautomations.com) since 2026-05-17. Source on GitHub: [joelmuthee/nessa](https://github.com/joelmuthee/nessa).
 
 ---
 
