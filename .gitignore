@@ -1,0 +1,13 @@
+.tmp/
+.wrangler/
+.firecrawl/
+.claude/
+node_modules/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+
+# Scratch files from the IG-import pipeline (regenerable)
+img_urls.json
+classification.csv

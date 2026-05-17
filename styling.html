@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wardrobe Styling - Nessa</title>
+<meta name="description" content="Wardrobe and costume styling by Vanessa. Kalasha-nominated for Best Costume Designer (2022). Commercial, editorial, film.">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Wardrobe Styling - Nessa">
+<meta property="og:description" content="Kalasha-nominated wardrobe stylist. Commercial, editorial, film.">
+<meta property="og:image" content="https://nessa.essenceautomations.com/images/og.jpg">
+<meta property="og:url" content="https://nessa.essenceautomations.com/styling.html">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://nessa.essenceautomations.com/styling.html">
+
+<meta name="theme-color" content="#1a1714">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body class="page-gallery" data-category="styling">
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="brand">Nessa</a>
+    <div class="nav-links">
+      <a href="makeup.html">Makeup</a>
+      <a href="styling.html" class="active">Styling</a>
+      <a href="https://thriftlux.ke" target="_blank" rel="noopener">Bags <span class="nav-ext">&#x2197;</span></a>
+      <a href="https://wa.me/254705044940" class="nav-cta" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+  </div>
+</nav>
+
+<header class="page-header">
+  <div class="container">
+    <p class="page-eyebrow">Service two &middot; Kalasha-nominated 2022</p>
+    <h1 class="page-title">Wardrobe Styling</h1>
+    <p class="page-sub">Costume design, commercial wardrobe, editorial. Premier Bet, Farmer's Choice, Safaricom, Absa, Dettol, Galito's and more. Tap any look to open the original Instagram post.</p>
+  </div>
+</header>
+
+<section class="gallery-section">
+  <div class="container">
+    <div class="gallery-meta" id="galleryMeta"></div>
+    <div class="gallery" id="gallery"></div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <h2 class="footer-mark">Nessa</h2>
+      <p>Makeup &middot; Styling &middot; ThriftLux Bags</p>
+    </div>
+    <div class="footer-links">
+      <a href="https://wa.me/254705044940" target="_blank" rel="noopener">WhatsApp &middot; 0705 044 940</a>
+      <a href="https://www.instagram.com/nessamakeupart/" target="_blank" rel="noopener">Instagram &middot; @nessamakeupart</a>
+      <a href="https://thriftlux.ke" target="_blank" rel="noopener">ThriftLux Bags &nbsp;&#x2197;</a>
+    </div>
+    <p class="footer-fine">&copy; <span id="year"></span> Nessa &middot; Nairobi, Kenya</p>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lightbox-close" id="lightboxClose" aria-label="Close">&times;</button>
+  <figure class="lightbox-figure">
+    <img id="lightboxImg" alt="">
+    <figcaption id="lightboxCaption"></figcaption>
+  </figure>
+</div>
+
+<script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+<script src="main.js?v=1"></script>
+</body>
+</html>
