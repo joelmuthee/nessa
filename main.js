@@ -156,7 +156,7 @@ const WA_NUMBER = '254705044940';
     cardObserver = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); cardObserver.unobserve(e.target); } });
     }, {threshold: 0.12, rootMargin: '0px 0px -40px 0px'});
-    document.querySelectorAll('.section-title, .about-grid > *, .footer-brand, .footer-links').forEach(el => cardObserver.observe(el));
+    document.querySelectorAll('.section-title, .about-grid > *, .footer-brand, .footer-nav, .footer-links').forEach(el => cardObserver.observe(el));
   }
   function observeNewCards() {
     if (!cardObserver) return;
