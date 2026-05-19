@@ -1,0 +1,12 @@
+# Nessa — robots.txt
+# Public site is fully crawlable. Admin paths blocked so search engines
+# don't waste budget on internal tools (and so admin links don't show up
+# in search results).
+
+User-agent: *
+Allow: /
+Disallow: /thriftlux/admin.html
+Disallow: /thriftlux/admin
+Disallow: /admin
+
+Sitemap: https://nessa.co.ke/sitemap.xml
