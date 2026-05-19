@@ -271,7 +271,9 @@ img { max-width: 100%; display: block; }
 }
 .card:hover .card-img { transform: scale(1.04); }
 
-.card.sold .card-img { filter: grayscale(0.4) brightness(0.92); }
+/* Sold bags: full-colour image like everything else. The SOLD badge in the
+   top-left corner is enough visual cue — buyers want to see the bag, not a
+   washed-out version of it. */
 
 .badge-sold {
   position: absolute;
