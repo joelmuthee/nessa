@@ -196,6 +196,58 @@ function renderExtras() {
   });
 }
 
+// Parse an IG caption into { name, price, description, sold } honouring the
+// Nairobi-thrift conventions Venessa actually writes. Robust to several price
+// notations: "@1500 /=", "4000/=", "1500/-", "Ksh 4000". When a price marker
+// is found, name = text before it, description = text after it (minus
+// SOLD/SOLD OUT and hashtags, which are metadata not product copy).
+function parseIgCaption(raw) {
+  if (!raw) return { name: '', price: null, description: '', sold: false };
+  // Strip the leading IG handle ("thriftlux.ke ") that every embed-page caption starts with.
+  const clean = raw.replace(/^[a-z0-9._]+\s+/i, '').trim();
+  const sold = /\bSOLD(?:\s*OUT)?\b/i.test(clean);
+
+  // Try price patterns in priority order. Min 2 digits to avoid matching
+  // sizes like "30" or quantities. Max 7 digits — Nairobi handbag prices.
+  const patterns = [
+    /@\s*(\d{2,7})\s*\/?=?/i,
+    /(\d{2,7})\s*\/=/,
+    /(\d{2,7})\s*\/-/,
+    /\b(?:ksh\.?|kes)\s*(\d{2,7})/i,
+  ];
+  let m = null;
+  for (const re of patterns) {
+    const hit = clean.match(re);
+    if (hit) { m = hit; break; }
+  }
+
+  let name, price, description;
+  if (m) {
+    const before = clean.slice(0, m.index).trim();
+    const after  = clean.slice(m.index + m[0].length).trim();
+    name = (before || clean.split(/[\n.!?]/)[0] || '').trim();
+    price = parseInt(m[1], 10);
+    description = after;
+  } else {
+    // No price marker found — first sentence is the name, full caption is the description fallback.
+    name = (clean.split(/[\n.!?]/)[0] || clean).trim();
+    price = null;
+    description = clean;
+  }
+
+  // Scrub metadata noise from description AND from the fallback-name path
+  const scrub = s => s
+    .replace(/\bSOLD\s*OUT\b/gi, '')
+    .replace(/\bSOLD\b/gi, '')
+    .replace(/#\w+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  name = scrub(name);
+  description = scrub(description);
+
+  return { name, price, description, sold };
+}
+
 // Extract the shortcode from an IG URL (reel/p/tv all use the same slug shape).
 function igShortcode(url) {
   const m = (url || '').match(/\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/);
@@ -262,16 +314,19 @@ document.getElementById('igQuickBtn').addEventListener('click', async () => {
       imagePreview.innerHTML = `<img src="${stagedImage.dataUrl}" style="max-width:200px;border-radius:8px;">`;
     }
     if (data.caption) {
-      // Strip the IG handle prefix ("thriftlux.ke ") that the embed page
-      // prepends to every caption. Without this, the name comes out as
-      // "thriftlux.ke <bag name>" and the description starts with the handle.
-      const cleanCaption = data.caption.replace(/^[a-z0-9._]+\s+/i, '').trim();
-      const firstLine = cleanCaption.split('\n')[0].trim();
-      const m = firstLine.match(/^(.*?)\s*@(\d+)\s*\/?=?/);
-      if (m) { nameInput.value = m[1].trim(); priceInput.value = m[2]; }
-      else { nameInput.value = firstLine; }
-      descInput.value = cleanCaption.replace(/#\w+/g, '').trim();
-      if (/\bSOLD(?:\s*OUT)?\b/i.test(cleanCaption)) soldInput.checked = true;
+      // Parse the IG caption into name + price + description. Handles the
+      // Nairobi-thrift conventions Venessa actually uses:
+      //   "@1500 /="    @ prefix
+      //   "4000/="      bare digits + /=
+      //   "1500/-"      bare digits + /-
+      //   "Ksh 4000"    explicit currency
+      // Strips handle prefix, hashtags, and SOLD/SOLD OUT (those are
+      // metadata, not product description).
+      const parsed = parseIgCaption(data.caption);
+      if (!nameInput.value && parsed.name) nameInput.value = parsed.name;
+      if (parsed.price != null) priceInput.value = parsed.price;
+      descInput.value = parsed.description;
+      if (parsed.sold) soldInput.checked = true;
     }
     if (data.postUrl) reelInput.value = data.postUrl;
     status.className = 'ig-quick-status ok';
