@@ -1,0 +1,11 @@
+name = "thriftlux-api"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+account_id = "58685495706b973821d77208248c66fc"
+
+[[kv_namespaces]]
+binding = "BAGS"
+id = "3da577dc31c9474f80394b53caeabbe8"
+
+# Auth token is set as a secret, not in this file:
+#   wrangler secret put ADMIN_TOKEN
