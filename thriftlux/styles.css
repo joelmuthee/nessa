@@ -41,6 +41,60 @@ img { max-width: 100%; display: block; }
 .container { width: min(1200px, 92%); margin: 0 auto; }
 
 /* ===== NAV ===== */
+/* Hub strip: thin cross-link bar above the main nav.
+   Establishes ThriftLux as part of the wider Nessa brand. Scrolls away
+   with content so the nav can keep its sticky behaviour underneath. */
+.hub-strip {
+  display: block;
+  background: #050505;
+  border-bottom: 1px solid rgba(201,169,97,0.16);
+  color: #d8d2c4;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  position: relative;
+  z-index: 210;
+}
+.hub-strip-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(1200px, 92%);
+  margin: 0 auto;
+  padding: 10px 16px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.hub-strip-label { color: #8a857f; }
+.hub-strip-brand {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-style: italic;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+  transition: color 0.22s;
+}
+.hub-strip-divider { color: rgba(201,169,97,0.45); padding: 0 2px; }
+.hub-strip-tag {
+  color: #b8b2a8;
+  font-size: 12px;
+  text-transform: none;
+}
+.hub-strip-arrow {
+  color: var(--gold);
+  margin-left: 6px;
+  transition: transform 0.25s, color 0.22s;
+  flex-shrink: 0;
+}
+.hub-strip:hover .hub-strip-arrow { transform: translate(3px, -3px); color: var(--gold-light); }
+.hub-strip:hover .hub-strip-brand { color: var(--gold-light); }
+@media (max-width: 640px) {
+  .hub-strip-inner { padding: 9px 14px; gap: 8px; }
+  .hub-strip-divider, .hub-strip-tag { display: none; }
+}
+
 .nav {
   position: sticky;
   top: 0;
