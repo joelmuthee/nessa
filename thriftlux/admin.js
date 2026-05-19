@@ -225,9 +225,14 @@ document.getElementById('igQuickBtn').addEventListener('click', async () => {
     const data = await r.json();
 
     // Stage the new image (we always want it, whether new bag or update).
+    // CORS-critical: IG CDN doesn't send Access-Control-Allow-Origin, so we
+    // MUST download the image through the Worker's /api/ig-proxy, never via
+    // data.imageUrl directly (which would throw "Failed to fetch" in browser).
     let newStaged = null;
     if (data.imageUrl) {
-      const imgRes = await fetch(data.imageUrl);
+      const proxied = `${API_BASE}/api/ig-proxy?url=${encodeURIComponent(data.imageUrl)}`;
+      const imgRes = await fetch(proxied);
+      if (!imgRes.ok) throw new Error(`ig-proxy ${imgRes.status}`);
       const blob = await imgRes.blob();
       const ext = (blob.type.split('/')[1] || 'jpg').toLowerCase();
       const r2 = new FileReader();
