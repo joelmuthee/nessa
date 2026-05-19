@@ -197,23 +197,33 @@ function renderExtras() {
 }
 
 // Parse an IG caption into { name, price, description, sold } honouring the
-// Nairobi-thrift conventions Venessa actually writes. Robust to several price
-// notations: "@1500 /=", "4000/=", "1500/-", "Ksh 4000". When a price marker
-// is found, name = text before it, description = text after it (minus
-// SOLD/SOLD OUT and hashtags, which are metadata not product copy).
+// Nairobi-thrift conventions Venessa actually writes. Price detection is
+// permissive — handles "@1500 /=", "4000/=", "1500/-", "Ksh 4000".
+//
+// Description keeps the FULL caption (just handle + hashtags stripped) so
+// product detail like "Mint condition, gold hardware" survives. Venessa can
+// trim down to taste; an empty description is worse than a verbose one.
+// Name is extracted cleanly from the bit before the price marker.
 function parseIgCaption(raw) {
   if (!raw) return { name: '', price: null, description: '', sold: false };
-  // Strip the leading IG handle ("thriftlux.ke ") that every embed-page caption starts with.
-  const clean = raw.replace(/^[a-z0-9._]+\s+/i, '').trim();
+
+  // Strip IG handle prefix + hashtags. Leave price marker, SOLD OUT, emojis,
+  // and product copy intact — that's what goes into the description.
+  const clean = raw
+    .replace(/^[a-z0-9._]+\s+/i, '')  // leading IG handle
+    .replace(/#\w+/g, '')             // hashtags anywhere
+    .replace(/\s{2,}/g, ' ')          // collapse runs of whitespace
+    .trim();
+
   const sold = /\bSOLD(?:\s*OUT)?\b/i.test(clean);
 
-  // Try price patterns in priority order. Min 2 digits to avoid matching
-  // sizes like "30" or quantities. Max 7 digits — Nairobi handbag prices.
+  // Price patterns in priority order. 2..7 digits — avoids matching sizes
+  // like "30" but allows handbag prices up to KSh 9,999,999.
   const patterns = [
-    /@\s*(\d{2,7})\s*\/?=?/i,
-    /(\d{2,7})\s*\/=/,
-    /(\d{2,7})\s*\/-/,
-    /\b(?:ksh\.?|kes)\s*(\d{2,7})/i,
+    /@\s*(\d{2,7})\s*\/?=?/i,           // @1500 / @1500/= / @ 1500
+    /(\d{2,7})\s*\/=/,                  // 4000/=  (bare digits + /=)
+    /(\d{2,7})\s*\/-/,                  // 1500/-
+    /\b(?:ksh\.?|kes)\s*(\d{2,7})/i,    // Ksh 4000 / KES 4000
   ];
   let m = null;
   for (const re of patterns) {
@@ -221,31 +231,18 @@ function parseIgCaption(raw) {
     if (hit) { m = hit; break; }
   }
 
-  let name, price, description;
+  let name, price;
   if (m) {
     const before = clean.slice(0, m.index).trim();
-    const after  = clean.slice(m.index + m[0].length).trim();
     name = (before || clean.split(/[\n.!?]/)[0] || '').trim();
     price = parseInt(m[1], 10);
-    description = after;
   } else {
-    // No price marker found — first sentence is the name, full caption is the description fallback.
+    // No price marker — first sentence is the name fallback.
     name = (clean.split(/[\n.!?]/)[0] || clean).trim();
     price = null;
-    description = clean;
   }
 
-  // Scrub metadata noise from description AND from the fallback-name path
-  const scrub = s => s
-    .replace(/\bSOLD\s*OUT\b/gi, '')
-    .replace(/\bSOLD\b/gi, '')
-    .replace(/#\w+/g, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-  name = scrub(name);
-  description = scrub(description);
-
-  return { name, price, description, sold };
+  return { name, price, description: clean, sold };
 }
 
 // Extract the shortcode from an IG URL (reel/p/tv all use the same slug shape).
