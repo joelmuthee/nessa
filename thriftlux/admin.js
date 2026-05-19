@@ -262,12 +262,16 @@ document.getElementById('igQuickBtn').addEventListener('click', async () => {
       imagePreview.innerHTML = `<img src="${stagedImage.dataUrl}" style="max-width:200px;border-radius:8px;">`;
     }
     if (data.caption) {
-      const firstLine = data.caption.split('\n')[0].trim();
+      // Strip the IG handle prefix ("thriftlux.ke ") that the embed page
+      // prepends to every caption. Without this, the name comes out as
+      // "thriftlux.ke <bag name>" and the description starts with the handle.
+      const cleanCaption = data.caption.replace(/^[a-z0-9._]+\s+/i, '').trim();
+      const firstLine = cleanCaption.split('\n')[0].trim();
       const m = firstLine.match(/^(.*?)\s*@(\d+)\s*\/?=?/);
       if (m) { nameInput.value = m[1].trim(); priceInput.value = m[2]; }
       else { nameInput.value = firstLine; }
-      descInput.value = data.caption.replace(/#\w+/g, '').trim();
-      if (/SOLD/i.test(data.caption)) soldInput.checked = true;
+      descInput.value = cleanCaption.replace(/#\w+/g, '').trim();
+      if (/\bSOLD(?:\s*OUT)?\b/i.test(cleanCaption)) soldInput.checked = true;
     }
     if (data.postUrl) reelInput.value = data.postUrl;
     status.className = 'ig-quick-status ok';
