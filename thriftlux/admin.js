@@ -59,33 +59,16 @@ async function apiUploadImage(base64, ext) {
   return `${API_BASE}${data.path}`;
 }
 
-// Every admin save MUST go through this helper. It refetches the live KV state,
-// applies the caller's mutation on top, then publishes. Without it, two tabs
-// (or any direct API call alongside admin) silently overwrite each other —
-// "last bulk-publish wins" with no concurrency check. The mutator runs against
-// the FRESH list, never `bags`. It can throw to abort (e.g. dedupe guard).
-async function apiMutateAndPublish(mutator) {
-  const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`);
-  if (!res.ok) throw new Error(`Failed to load fresh data: ${res.status}`);
-  const fresh = await res.json();
-  const nextBags = Array.isArray(fresh.bags) ? fresh.bags : [];
-  const nextSettings = fresh.settings || {};
-
-  mutator(nextBags, nextSettings);
-
-  const pubRes = await fetch(`${API_BASE}/api/bulk`, {
+async function apiPublish() {
+  const res = await fetch(`${API_BASE}/api/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify({ bags: nextBags, settings: nextSettings }),
+    body: JSON.stringify({ bags, settings }),
   });
-  if (!pubRes.ok) {
-    const err = await pubRes.json().catch(() => ({}));
-    throw new Error(err.error || `Save failed: ${pubRes.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Save failed: ${res.status}`);
   }
-
-  bags = nextBags;
-  settings = nextSettings;
-  backfill();
 }
 
 async function loadData() {
@@ -196,134 +179,34 @@ function renderExtras() {
   });
 }
 
-// Parse an IG caption into { name, price, description, sold } honouring the
-// Nairobi-thrift conventions Venessa actually writes. Price detection is
-// permissive — handles "@1500 /=", "4000/=", "1500/-", "Ksh 4000".
-//
-// Description keeps the FULL caption (just handle + hashtags stripped) so
-// product detail like "Mint condition, gold hardware" survives. Venessa can
-// trim down to taste; an empty description is worse than a verbose one.
-// Name is extracted cleanly from the bit before the price marker.
-function parseIgCaption(raw) {
-  if (!raw) return { name: '', price: null, description: '', sold: false };
-
-  // Strip IG handle prefix + hashtags. Leave price marker, SOLD OUT, emojis,
-  // and product copy intact — that's what goes into the description.
-  const clean = raw
-    .replace(/^[a-z0-9._]+\s+/i, '')  // leading IG handle
-    .replace(/#\w+/g, '')             // hashtags anywhere
-    .replace(/\s{2,}/g, ' ')          // collapse runs of whitespace
-    .trim();
-
-  const sold = /\bSOLD(?:\s*OUT)?\b/i.test(clean);
-
-  // Price patterns in priority order. 2..7 digits — avoids matching sizes
-  // like "30" but allows handbag prices up to KSh 9,999,999.
-  const patterns = [
-    /@\s*(\d{2,7})\s*\/?=?/i,           // @1500 / @1500/= / @ 1500
-    /(\d{2,7})\s*\/=/,                  // 4000/=  (bare digits + /=)
-    /(\d{2,7})\s*\/-/,                  // 1500/-
-    /\b(?:ksh\.?|kes)\s*(\d{2,7})/i,    // Ksh 4000 / KES 4000
-  ];
-  let m = null;
-  for (const re of patterns) {
-    const hit = clean.match(re);
-    if (hit) { m = hit; break; }
-  }
-
-  let name, price;
-  if (m) {
-    const before = clean.slice(0, m.index).trim();
-    name = (before || clean.split(/[\n.!?]/)[0] || '').trim();
-    price = parseInt(m[1], 10);
-  } else {
-    // No price marker — first sentence is the name fallback.
-    name = (clean.split(/[\n.!?]/)[0] || clean).trim();
-    price = null;
-  }
-
-  return { name, price, description: clean, sold };
-}
-
-// Extract the shortcode from an IG URL (reel/p/tv all use the same slug shape).
-function igShortcode(url) {
-  const m = (url || '').match(/\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/);
-  return m ? m[1] : null;
-}
-function findBagByShortcode(code) {
-  if (!code) return null;
-  return bags.find(b => {
-    const r = (b.reel || b.instagramUrl || '');
-    return r.includes('/' + code);
-  }) || null;
-}
-
 // IG quick-add — uses the worker's /api/ig-fetch when available. Fails politely otherwise.
-// If the pasted post already exists in the catalogue (same shortcode), switch into
-// edit mode for that bag rather than creating a duplicate. The new photo overlays
-// the existing one on save; other fields stay as the admin already set them.
 document.getElementById('igQuickBtn').addEventListener('click', async () => {
   const url = document.getElementById('igQuickInput').value.trim();
   const status = document.getElementById('igQuickStatus');
   if (!url) { status.className = 'ig-quick-status err'; status.textContent = 'Paste an Instagram URL first.'; return; }
   status.className = 'ig-quick-status'; status.textContent = 'Fetching…';
-  const existing = findBagByShortcode(igShortcode(url));
   try {
     const r = await fetch(`${API_BASE}/api/ig-fetch?url=${encodeURIComponent(url)}`);
     if (!r.ok) throw new Error('endpoint not deployed yet');
     const data = await r.json();
-
-    // Stage the new image (we always want it, whether new bag or update).
-    // CORS-critical: IG CDN doesn't send Access-Control-Allow-Origin, so we
-    // MUST download the image through the Worker's /api/ig-proxy, never via
-    // data.imageUrl directly (which would throw "Failed to fetch" in browser).
-    let newStaged = null;
     if (data.imageUrl) {
-      const proxied = `${API_BASE}/api/ig-proxy?url=${encodeURIComponent(data.imageUrl)}`;
-      const imgRes = await fetch(proxied);
-      if (!imgRes.ok) throw new Error(`ig-proxy ${imgRes.status}`);
+      const imgRes = await fetch(data.imageUrl);
       const blob = await imgRes.blob();
       const ext = (blob.type.split('/')[1] || 'jpg').toLowerCase();
       const r2 = new FileReader();
-      newStaged = await new Promise(resolve => {
+      stagedImage = await new Promise(resolve => {
         r2.onload = () => resolve({ base64: r2.result.split(',')[1], ext, dataUrl: r2.result });
         r2.readAsDataURL(blob);
       });
-    }
-
-    if (existing) {
-      // Update-in-place path: switch into edit mode for the existing bag.
-      // editBag() fills the form with existing values and hides the IG panel,
-      // so we overlay the staged photo afterwards. Status moves to toast since
-      // the panel itself is now hidden.
-      editBag(existing.id);
-      if (newStaged) {
-        stagedImage = newStaged;
-        imagePreview.innerHTML = `<img src="${stagedImage.dataUrl}" style="max-width:200px;border-radius:8px;">`;
-      }
-      showToast(`Existing bag found — editing "${existing.name}". Save to apply the new photo.`);
-      return;
-    }
-
-    // New-bag path: existing behaviour.
-    if (newStaged) {
-      stagedImage = newStaged;
       imagePreview.innerHTML = `<img src="${stagedImage.dataUrl}" style="max-width:200px;border-radius:8px;">`;
     }
     if (data.caption) {
-      // Parse the IG caption into name + price + description. Handles the
-      // Nairobi-thrift conventions Venessa actually uses:
-      //   "@1500 /="    @ prefix
-      //   "4000/="      bare digits + /=
-      //   "1500/-"      bare digits + /-
-      //   "Ksh 4000"    explicit currency
-      // Strips handle prefix, hashtags, and SOLD/SOLD OUT (those are
-      // metadata, not product description).
-      const parsed = parseIgCaption(data.caption);
-      if (!nameInput.value && parsed.name) nameInput.value = parsed.name;
-      if (parsed.price != null) priceInput.value = parsed.price;
-      descInput.value = parsed.description;
-      if (parsed.sold) soldInput.checked = true;
+      const firstLine = data.caption.split('\n')[0].trim();
+      const m = firstLine.match(/^(.*?)\s*@(\d+)\s*\/?=?/);
+      if (m) { nameInput.value = m[1].trim(); priceInput.value = m[2]; }
+      else { nameInput.value = firstLine; }
+      descInput.value = data.caption.replace(/#\w+/g, '').trim();
+      if (/SOLD/i.test(data.caption)) soldInput.checked = true;
     }
     if (data.postUrl) reelInput.value = data.postUrl;
     status.className = 'ig-quick-status ok';
@@ -396,36 +279,28 @@ async function saveBag() {
     }
 
     if (editingId) {
-      await apiMutateAndPublish((bagsList) => {
-        const bag = bagsList.find(b => b.id === editingId);
-        if (!bag) throw new Error('Bag no longer exists — refresh admin');
-        bag.name = name; bag.description = desc; bag.price = price;
-        bag.category = category; bag.reel = reel; bag.instagramUrl = reel || bag.instagramUrl;
-        if (imagePath) bag.image = imagePath;
-        if (extraPaths.length) bag.images = extraPaths;
-        bag.sold = sold;
-        if (!sold) delete bag.soldTo;
-      });
+      const bag = bags.find(b => b.id === editingId);
+      if (!bag) return;
+      bag.name = name; bag.description = desc; bag.price = price;
+      bag.category = category; bag.reel = reel; bag.instagramUrl = reel || bag.instagramUrl;
+      if (imagePath) bag.image = imagePath;
+      if (extraPaths.length) bag.images = extraPaths;
+      bag.sold = sold;
+      if (!sold) delete bag.soldTo;
+      await apiPublish();
       showToast('Bag updated and live!');
     } else {
       if (!stagedImage) { showToast('Add a bag image.'); setSaving(false); return; }
-      await apiMutateAndPublish((bagsList) => {
-        // Dedupe guard runs against FRESH data so it catches dupes that landed
-        // since admin was opened (e.g. via another tab or a direct API call).
-        const code = igShortcode(reel);
-        if (code) {
-          const dup = bagsList.find(b => (b.reel || b.instagramUrl || '').includes('/' + code));
-          if (dup) throw new Error(`Already in catalogue as "${dup.name}". Click Edit on that bag instead.`);
-        }
-        const id = 'bag_' + Date.now();
-        bagsList.unshift({
-          id, name, description: desc, category, price,
-          reel, instagramUrl: reel, sold,
-          image: imagePath,
-          images: extraPaths,
-          createdAt: new Date().toISOString(),
-        });
-      });
+      const id = 'bag_' + Date.now();
+      const bag = {
+        id, name, description: desc, category, price,
+        reel, instagramUrl: reel, sold,
+        image: imagePath,
+        images: extraPaths,
+        createdAt: new Date().toISOString(),
+      };
+      bags.unshift(bag);
+      await apiPublish();
       showToast('Bag added and live!');
     }
     resetForm();
@@ -467,14 +342,7 @@ function editBag(id) {
   categoryInput.value = bag.category || '';
   soldInput.checked = !!bag.sold;
   stagedImage = null;
-  // Edit mode: label the existing cover so it's obvious which picker replaces it.
-  // Without this, admins occasionally drop the new photo into the "Additional images"
-  // field below and the cover never updates.
-  imagePreview.innerHTML = `
-    <div style="font-size:12px;font-weight:600;color:var(--brand,#b8860b);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px;">Current cover photo</div>
-    <img src="${bag.image}" style="max-width:200px;border-radius:8px;display:block;">
-    <div style="font-size:12px;color:#666;margin-top:6px;">To replace it, use the <strong>Main image</strong> file picker directly above. The <em>Additional images</em> field below is for extra angles only.</div>
-  `;
+  imagePreview.innerHTML = `<img src="${bag.image}" style="max-width:200px;border-radius:8px;">`;
   stagedExtras = (bag.images || []).slice().map(url => url);
   renderExtrasForEdit(stagedExtras);
   formTitle.textContent = 'Edit bag';
@@ -512,11 +380,9 @@ function renderExtrasForEdit(list) {
 
 async function deleteBag(id) {
   if (!confirm('Delete this bag? This cannot be undone.')) return;
+  bags = bags.filter(b => b.id !== id);
   try {
-    await apiMutateAndPublish((bagsList) => {
-      const i = bagsList.findIndex(b => b.id === id);
-      if (i !== -1) bagsList.splice(i, 1);
-    });
+    await apiPublish();
     renderAll();
     showToast('Bag deleted and live.');
   } catch(err) { showToast('Sync failed: ' + err.message); }
@@ -526,16 +392,13 @@ async function toggleSold(id) {
   const bag = bags.find(b => b.id === id);
   if (!bag) return;
   if (bag.sold) {
+    bag.sold = false;
+    delete bag.soldTo;
     try {
-      await apiMutateAndPublish((bagsList) => {
-        const b = bagsList.find(x => x.id === id);
-        if (!b) throw new Error('Bag no longer exists — refresh admin');
-        b.sold = false;
-        delete b.soldTo;
-      });
+      await apiPublish();
       renderAll();
       showToast('Marked as available.');
-    } catch(err) { showToast('Sync failed: ' + err.message); }
+    } catch(err) { bag.sold = true; showToast('Sync failed: ' + err.message); }
     return;
   }
   openBuyerModal(bag);
@@ -559,32 +422,25 @@ function closeBuyerModal() { buyerModal.style.display = 'none'; pendingBag = nul
 
 async function commitSold(withBuyer) {
   if (!pendingBag) return;
-  const targetId = pendingBag.id;
-  let buyerInfo = null;
+  const bag = pendingBag;
+  bag.sold = true;
   if (withBuyer) {
     const name = buyerName.value.trim();
     const phone = buyerPhone.value.trim().replace(/[^0-9+]/g, '');
     const notes = buyerNotes.value.trim();
     if (!name && !phone) { showToast('Add a name or phone, or hit Skip.'); return; }
-    buyerInfo = { name, phone, notes };
+    bag.soldTo = { name, phone, notes, soldAt: new Date().toISOString(), salePrice: Number(bag.price) || 0 };
+  } else {
+    bag.soldTo = { soldAt: new Date().toISOString(), salePrice: Number(bag.price) || 0 };
   }
   closeBuyerModal();
   try {
-    let appliedBag = null;
-    await apiMutateAndPublish((bagsList) => {
-      const b = bagsList.find(x => x.id === targetId);
-      if (!b) throw new Error('Bag no longer exists — refresh admin');
-      b.sold = true;
-      const salePrice = Number(b.price) || 0;
-      b.soldTo = withBuyer
-        ? { ...buyerInfo, soldAt: new Date().toISOString(), salePrice }
-        : { soldAt: new Date().toISOString(), salePrice };
-      appliedBag = b;
-    });
+    await apiPublish();
     renderAll();
     showToast(withBuyer ? 'SOLD. Buyer saved.' : 'Marked as SOLD.');
-    if (withBuyer && appliedBag?.soldTo?.phone) sendBuyerToGHL(appliedBag);
+    if (withBuyer && bag.soldTo.phone) sendBuyerToGHL(bag);
   } catch(err) {
+    bag.sold = false; delete bag.soldTo;
     showToast('Sync failed: ' + err.message);
   }
 }
@@ -860,37 +716,20 @@ window.bulkClear = () => { bulkSelected.clear(); refreshBulkBar(); renderList();
 window.bulkDelete = async () => {
   if (!bulkSelected.size) return;
   if (!confirm(`Delete ${bulkSelected.size} bags? Cannot be undone.`)) return;
-  const targetIds = new Set(bulkSelected);
-  try {
-    await apiMutateAndPublish((bagsList) => {
-      for (let i = bagsList.length - 1; i >= 0; i--) {
-        if (targetIds.has(bagsList[i].id)) bagsList.splice(i, 1);
-      }
-    });
-    bulkSelected.clear();
-    renderAll();
-    showToast('Deleted.');
-  } catch(err) { showToast('Sync failed: ' + err.message); }
+  bags = bags.filter(b => !bulkSelected.has(b.id));
+  bulkSelected.clear();
+  try { await apiPublish(); renderAll(); showToast('Deleted.'); }
+  catch(err) { showToast('Sync failed: ' + err.message); }
 };
 window.bulkMarkSold = async () => {
-  const targetIds = new Set(bulkSelected);
-  try {
-    await apiMutateAndPublish((bagsList) => {
-      bagsList.forEach(b => { if (targetIds.has(b.id) && !b.sold) { b.sold = true; b.soldTo = { salePrice: Number(b.price) || 0, soldAt: new Date().toISOString() }; } });
-    });
-    renderAll();
-    showToast('Marked as sold.');
-  } catch(err) { showToast('Sync failed: ' + err.message); }
+  bags.forEach(b => { if (bulkSelected.has(b.id) && !b.sold) { b.sold = true; b.soldTo = { salePrice: Number(b.price) || 0, soldAt: new Date().toISOString() }; } });
+  try { await apiPublish(); renderAll(); showToast('Marked as sold.'); }
+  catch(err) { showToast('Sync failed: ' + err.message); }
 };
 window.bulkMarkAvailable = async () => {
-  const targetIds = new Set(bulkSelected);
-  try {
-    await apiMutateAndPublish((bagsList) => {
-      bagsList.forEach(b => { if (targetIds.has(b.id) && b.sold) { b.sold = false; delete b.soldTo; } });
-    });
-    renderAll();
-    showToast('Marked as available.');
-  } catch(err) { showToast('Sync failed: ' + err.message); }
+  bags.forEach(b => { if (bulkSelected.has(b.id) && b.sold) { b.sold = false; delete b.soldTo; } });
+  try { await apiPublish(); renderAll(); showToast('Marked as available.'); }
+  catch(err) { showToast('Sync failed: ' + err.message); }
 };
 window.bulkSetCategory = () => {
   document.getElementById('bulkCatCount').textContent = bulkSelected.size;
@@ -900,15 +739,10 @@ document.getElementById('bulkCatCancelBtn').addEventListener('click', () => { do
 document.getElementById('bulkCatSaveBtn').addEventListener('click', async () => {
   const cat = document.getElementById('bulkCatSelect').value;
   if (!cat) { showToast('Pick a category.'); return; }
-  const targetIds = new Set(bulkSelected);
+  bags.forEach(b => { if (bulkSelected.has(b.id)) b.category = cat; });
   document.getElementById('bulkCatModal').style.display = 'none';
-  try {
-    await apiMutateAndPublish((bagsList) => {
-      bagsList.forEach(b => { if (targetIds.has(b.id)) b.category = cat; });
-    });
-    renderAll();
-    showToast('Categories updated.');
-  } catch(err) { showToast('Sync failed: ' + err.message); }
+  try { await apiPublish(); renderAll(); showToast('Categories updated.'); }
+  catch(err) { showToast('Sync failed: ' + err.message); }
 });
 
 // ==================== BAG LIST ====================
@@ -1038,6 +872,129 @@ function renderAll() {
   renderBroadcast();
   renderInsights();
   renderList();
+}
+
+// ====== INSTAGRAM BULK SYNC ======
+// "Check for new posts" widget. Pulls fresh IG posts, runs them through the
+// worker's vision + text AI classifier, and shows a preview list. Owner ticks
+// the bags they want and clicks "Add selected bags" to commit. Dedup contract:
+// posts whose shortcode is already in the catalog never appear in the preview.
+const IG_USER_ID = '27867036937';
+const BAG_CATEGORIES = ['Crossbody', 'Shoulder', 'Tote', 'Top Handle', 'Hobo', 'Bucket', 'Baguette', 'Clutch', 'Sling', 'Belt Bag'];
+let igSyncCandidates = [];
+
+const igSyncCheckBtn = document.getElementById('igSyncCheckBtn');
+const igSyncCommitBtn = document.getElementById('igSyncCommitBtn');
+const igSyncCancelBtn = document.getElementById('igSyncCancelBtn');
+const igSyncStatus = document.getElementById('igSyncStatus');
+const igSyncListEl = document.getElementById('igSyncList');
+const igSyncCommitRow = document.getElementById('igSyncCommitRow');
+
+igSyncCheckBtn?.addEventListener('click', checkForNewIgPosts);
+igSyncCancelBtn?.addEventListener('click', resetIgSync);
+igSyncCommitBtn?.addEventListener('click', commitIgSync);
+
+async function checkForNewIgPosts() {
+  igSyncCheckBtn.disabled = true;
+  igSyncStatus.textContent = 'Checking Instagram…';
+  igSyncListEl.innerHTML = '';
+  igSyncCommitRow.style.display = 'none';
+  try {
+    const res = await fetch(`${API_BASE}/api/ig-discover?user_id=${IG_USER_ID}&limit=20`, {
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    igSyncCandidates = data.items || [];
+    if (!igSyncCandidates.length) {
+      igSyncStatus.textContent = '✓ Catalog is up to date. No new posts on Instagram.';
+      igSyncCheckBtn.disabled = false;
+      return;
+    }
+    igSyncStatus.textContent = `Found ${igSyncCandidates.length} new post${igSyncCandidates.length === 1 ? '' : 's'}. Review below, then add.`;
+    renderIgSyncList();
+    igSyncCommitRow.style.display = 'flex';
+  } catch (err) {
+    igSyncStatus.textContent = '✗ ' + err.message;
+  } finally {
+    igSyncCheckBtn.disabled = false;
+  }
+}
+
+function renderIgSyncList() {
+  igSyncListEl.innerHTML = igSyncCandidates.map((it, i) => {
+    const s = it.suggested || {};
+    const stockText = Object.entries(s.stock || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || 'One Size';
+    const captionShort = (it.caption || '').replace(/\s+/g, ' ').slice(0, 120);
+    const catOpts = BAG_CATEGORIES.map(c => `<option value="${c}" ${c === s.category ? 'selected' : ''}>${c}</option>`).join('');
+    return `
+      <div class="ig-sync-row" data-idx="${i}">
+        <label class="ig-sync-check">
+          <input type="checkbox" data-ig-pick="${i}" checked>
+        </label>
+        <img src="${escapeHtml(it.imageUrl)}" alt="" referrerpolicy="no-referrer">
+        <div class="ig-sync-body">
+          <div class="ig-sync-row-1">
+            <input type="text" class="ig-sync-name" data-ig-name="${i}" value="${escapeHtml(s.name || '')}" placeholder="Name">
+            <select class="ig-sync-cat" data-ig-cat="${i}">${catOpts}</select>
+          </div>
+          <div class="ig-sync-row-2">
+            <span class="ig-sync-size">${escapeHtml(stockText)}</span>
+            <a href="${escapeHtml(it.postUrl)}" target="_blank" rel="noopener" class="ig-sync-postlink">view on IG ↗</a>
+          </div>
+          <div class="ig-sync-caption">${escapeHtml(captionShort)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function resetIgSync() {
+  igSyncCandidates = [];
+  igSyncListEl.innerHTML = '';
+  igSyncCommitRow.style.display = 'none';
+  igSyncStatus.textContent = '';
+}
+
+async function commitIgSync() {
+  const picks = [];
+  igSyncCandidates.forEach((it, i) => {
+    const cb = igSyncListEl.querySelector(`[data-ig-pick="${i}"]`);
+    if (!cb || !cb.checked) return;
+    const nameEl = igSyncListEl.querySelector(`[data-ig-name="${i}"]`);
+    const catEl = igSyncListEl.querySelector(`[data-ig-cat="${i}"]`);
+    picks.push({
+      shortcode: it.shortcode,
+      name: (nameEl?.value || it.suggested?.name || '').trim() || 'Pre-loved Bag',
+      category: catEl?.value || it.suggested?.category || 'Shoulder',
+      stock: it.suggested?.stock || { 'One Size': 1 },
+      description: it.suggested?.description || '',
+      imageUrls: it.imageUrls || [it.imageUrl],
+      takenAt: it.takenAt,
+    });
+  });
+  if (!picks.length) { showToast('Tick at least one bag to add.'); return; }
+  igSyncCommitBtn.disabled = true;
+  igSyncCommitBtn.textContent = `Adding ${picks.length}…`;
+  try {
+    const res = await fetch(`${API_BASE}/api/ig-sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ items: picks }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    showToast(`Added ${data.added} bag${data.added === 1 ? '' : 's'} from Instagram.`);
+    igSyncStatus.textContent = `✓ Added ${data.added}. ${data.errors?.length ? `(${data.errors.length} failures)` : ''}`;
+    resetIgSync();
+    await loadData();
+    renderAll();
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    igSyncStatus.textContent = '✗ ' + err.message;
+  } finally {
+    igSyncCommitBtn.disabled = false;
+    igSyncCommitBtn.textContent = 'Add selected bags';
+  }
 }
 
 window.editBag = editBag;
