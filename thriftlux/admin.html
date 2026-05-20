@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#0d0d0d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=19">
 <!-- GHL form submit captcha (enterprise reCAPTCHA v3) -->
 <script src="https://www.google.com/recaptcha/enterprise.js?render=6LeDBFwpAAAAAJe8ux9-imrqZ2ueRsEtdiWoDDpX" async defer></script>
 </head>
@@ -257,9 +257,14 @@
         <input id="priceInput" type="number" min="0" step="50" placeholder="1500">
       </div>
       <div class="field">
-        <label>Instagram reel URL <small style="font-weight:400;color:#999;">optional</small></label>
-        <input id="reelInput" type="url" placeholder="https://www.instagram.com/reel/...">
+        <label>Sale price (Ksh) <small style="font-weight:400;color:#999;">optional — leave blank for no sale</small></label>
+        <input id="salePriceInput" type="number" min="0" step="50" placeholder="e.g. 1200">
       </div>
+    </div>
+
+    <div class="field">
+      <label>Instagram reel URL <small style="font-weight:400;color:#999;">optional</small></label>
+      <input id="reelInput" type="url" placeholder="https://www.instagram.com/reel/...">
     </div>
 
     <div class="field field-checkbox">
@@ -293,6 +298,8 @@
   <div class="bulk-bar" id="bulkActions" style="display:none;">
     <span><strong id="bulkCount">0</strong> selected</span>
     <button class="btn-admin" onclick="bulkSetCategory()">Set category</button>
+    <button class="btn-admin" onclick="bulkPutOnSale()">Put on sale</button>
+    <button class="btn-admin" onclick="bulkRemoveSale()">Remove sale</button>
     <button class="btn-admin" onclick="bulkMarkSold()">Mark sold</button>
     <button class="btn-admin" onclick="bulkMarkAvailable()">Mark available</button>
     <button class="btn-admin danger" onclick="bulkDelete()">Delete</button>
@@ -368,6 +375,35 @@
   </div>
 </div>
 
+<!-- BULK SALE MODAL -->
+<div id="bulkSaleModal" class="modal" style="display:none;">
+  <div class="modal-card">
+    <h3>Put selected bags on sale</h3>
+    <p style="color:#666;font-size:14px;margin-bottom:16px;">Applies to <strong id="bulkSaleCount">0</strong> selected bags. The original price shows struck-through on the website.</p>
+    <div class="field">
+      <label>Discount type</label>
+      <div class="bulk-sale-toggle" style="display:flex;gap:8px;margin-top:4px;">
+        <button type="button" class="btn-admin sale-mode-btn active" data-sale-mode="pct">% off</button>
+        <button type="button" class="btn-admin sale-mode-btn" data-sale-mode="fixed">Set exact price</button>
+      </div>
+    </div>
+    <div class="field" id="bulkSalePctField">
+      <label>Percent off</label>
+      <input id="bulkSalePct" type="number" min="1" max="90" step="5" placeholder="e.g. 30">
+      <p style="font-size:12px;color:#999;margin-top:4px;">Each bag's sale price = its own price minus this %, rounded to the nearest 50.</p>
+    </div>
+    <div class="field" id="bulkSaleFixedField" style="display:none;">
+      <label>New sale price (Ksh)</label>
+      <input id="bulkSaleFixed" type="number" min="0" step="50" placeholder="e.g. 1500">
+      <p style="font-size:12px;color:#999;margin-top:4px;">Same flat price applied to every selected bag. Bags whose price is already at or below this are skipped.</p>
+    </div>
+    <div class="admin-actions" style="margin-top:18px;">
+      <button class="btn-admin primary" id="bulkSaleSaveBtn">Apply sale</button>
+      <button class="btn-admin danger" id="bulkSaleCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- CONFIRM MODAL (replaces native confirm() — suppressed in in-app webviews) -->
 <div id="confirmModal" class="modal" style="display:none;">
   <div class="modal-card">
@@ -380,6 +416,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=11"></script>
+<script src="admin.js?v=12"></script>
 </body>
 </html>

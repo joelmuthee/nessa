@@ -234,6 +234,10 @@ img { max-width: 100%; display: block; }
 }
 .pill:hover { border-color: var(--gold); color: var(--ink); }
 .pill.active { background: var(--ink); border-color: var(--ink); color: var(--gold-light); }
+/* On Sale pill — red accent so it stands out from the neutral filter row. */
+.pill-sale { border-color: rgba(192,57,43,0.45); color: #c0392b; font-weight: 600; }
+.pill-sale:hover { border-color: #c0392b; color: #c0392b; }
+.pill-sale.active { background: #c0392b; border-color: #c0392b; color: #fff; }
 .filter-meta { color: var(--ink-faint); font-size: 14px; }
 
 /* ===== GALLERY ===== */
@@ -286,6 +290,22 @@ img { max-width: 100%; display: block; }
   text-transform: uppercase;
   border: 1px solid var(--gold);
 }
+/* SALE ribbon — red so it's unmistakable. Sits top-left; a bag is never both
+   sold and on-sale (isOnSale requires !sold), so no clash with .badge-sold. */
+.badge-sale {
+  position: absolute;
+  top: 14px; left: 14px;
+  background: #c0392b;
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  box-shadow: 0 4px 14px rgba(192,57,43,0.45);
+  z-index: 2;
+}
 
 .card-body { padding: 18px 20px 20px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .card-title {
@@ -303,8 +323,9 @@ img { max-width: 100%; display: block; }
 }
 .card-price-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 4px;
 }
 .card-price {
@@ -314,6 +335,29 @@ img { max-width: 100%; display: block; }
   color: var(--ink);
 }
 .card-price small { font-size: 12px; color: var(--ink-faint); font-weight: 400; font-family: var(--sans); }
+
+/* Sale pricing on a card: original price struck-through, sale price in red,
+   and a small "-X%" pill so the discount magnitude reads instantly. */
+.card-price-was {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: rgba(138,133,127,0.7);
+}
+.card-price-sale { color: #c0392b; }
+.price-off {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #c0392b;
+  border-radius: 999px;
+  padding: 3px 8px;
+  align-self: center;
+}
 
 .card-actions {
   display: flex;
@@ -651,6 +695,8 @@ img { max-width: 100%; display: block; }
 .btn-admin.primary:hover { background: var(--gold); color: var(--ink); border-color: var(--gold); }
 .btn-admin.danger { color: #b00020; border-color: #f3c5cc; }
 .btn-admin.danger:hover { background: #b00020; color: #fff; border-color: #b00020; }
+/* Bulk-sale modal: discount-type toggle (% off vs exact price) */
+.sale-mode-btn.active { background: var(--ink); color: var(--gold-light); border-color: var(--ink); }
 
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .modal-card { background: #fff; border-radius: 14px; padding: 28px; max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }

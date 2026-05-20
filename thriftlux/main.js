@@ -39,6 +39,13 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     const age = Date.now() - new Date(bag.createdAt).getTime();
     return age >= 0 && age < NEW_BADGE_DAYS * 86400000;
   }
+  // A bag is on sale when it has a valid salePrice below its regular price and
+  // hasn't been sold. effectivePrice = what the buyer actually pays right now.
+  function isOnSale(bag) {
+    return !bag.sold && Number(bag.salePrice) > 0 && Number(bag.salePrice) < Number(bag.price);
+  }
+  function effectivePrice(bag) { return isOnSale(bag) ? Number(bag.salePrice) : Number(bag.price || 0); }
+  function discountPct(bag) { return Math.round((1 - Number(bag.salePrice) / Number(bag.price)) * 100); }
 
   // ----- Likes (per-bag deterministic base + per-visitor +1 stored locally) -----
   const LIKES_KEY = 'thriftlux_likes';
@@ -83,7 +90,9 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   // separated by \n\n, so WhatsApp generates a link-preview card.
   function whatsappLink(bag) {
     const phone = (settings.whatsappNumber || '254705044940');
-    const pricePart = (bag.price > 0) ? ` (${fmtPrice(bag.price)})` : '';
+    let pricePart = '';
+    if (isOnSale(bag)) pricePart = ` (on sale: ${fmtPrice(bag.salePrice)}, was ${fmtPrice(bag.price)})`;
+    else if (bag.price > 0) pricePart = ` (${fmtPrice(bag.price)})`;
     let msg = `Hi Venessa! I'd like to enquire about the *${bag.name}*${pricePart} on ThriftLux.`;
     if (bag.reel || bag.instagramUrl) msg += `\nReel: ${bag.reel || bag.instagramUrl}`;
     const imgUrl = absImageUrl(bag.image);
@@ -96,6 +105,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     let out = bags.slice();
     if (currentFilter === 'sold') out = out.filter(b => b.sold);
     else if (currentFilter === 'available') out = out.filter(b => !b.sold);
+    else if (currentFilter === 'sale') out = out.filter(b => isOnSale(b));
     if (currentCategory !== 'all') out = out.filter(b => (b.category || '') === currentCategory);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -109,8 +119,8 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       case 'newest':
         out.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         break;
-      case 'price-asc': out.sort((a, b) => (a.price || 0) - (b.price || 0)); break;
-      case 'price-desc': out.sort((a, b) => (b.price || 0) - (a.price || 0)); break;
+      case 'price-asc': out.sort((a, b) => effectivePrice(a) - effectivePrice(b)); break;
+      case 'price-desc': out.sort((a, b) => effectivePrice(b) - effectivePrice(a)); break;
       // 'featured' = original order
     }
     return out;
@@ -164,9 +174,16 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
 
     gallery.innerHTML = filtered.map(bag => {
       const igUrl = bag.instagramUrl || bag.reel || '';
-      const priceLine = (bag.price > 0)
-        ? `<span class="card-price">${fmtPrice(bag.price)}</span>`
-        : `<span class="card-price"><small style="font-style:italic;font-weight:400;">Price on request</small></span>`;
+      let priceLine;
+      if (isOnSale(bag)) {
+        priceLine = `<span class="card-price-was">${fmtPrice(bag.price)}</span>`
+          + `<span class="card-price card-price-sale">${fmtPrice(bag.salePrice)}</span>`
+          + `<span class="price-off">-${discountPct(bag)}%</span>`;
+      } else if (bag.price > 0) {
+        priceLine = `<span class="card-price">${fmtPrice(bag.price)}</span>`;
+      } else {
+        priceLine = `<span class="card-price"><small style="font-style:italic;font-weight:400;">Price on request</small></span>`;
+      }
       const enquireLabel = bag.sold
         ? 'Sold out'
         : `<svg class="wa-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.263.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413"/></svg> Enquire`;
@@ -175,7 +192,8 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
         <div class="card-img-wrap" data-action="zoom" data-id="${bag.id}">
           <img class="card-img" src="${bag.image}?${IMG_VERSION}" alt="${escapeHtml(bag.name)}" loading="lazy">
           ${bag.sold ? '<span class="badge-sold">Sold</span>' : ''}
-          ${!bag.sold && isNew(bag) ? '<span class="badge-new">NEW</span>' : ''}
+          ${isOnSale(bag) ? '<span class="badge-sale">SALE</span>' : ''}
+          ${!bag.sold && !isOnSale(bag) && isNew(bag) ? '<span class="badge-new">NEW</span>' : ''}
           <button type="button" class="like-pill ${getLikedSet().has(bag.id) ? 'liked' : ''}" data-action="like" data-id="${bag.id}" aria-label="Like this bag">
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 7.5 4 4 7.5 4c2 0 3.5 1.2 4.5 3 1-1.8 2.5-3 4.5-3C20 4 23 7.5 21.5 11.5 19.5 16.5 12 21 12 21z"/></svg>
           <span class="like-count">${bagLikeCount(bag.id)}</span>
@@ -284,7 +302,10 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     track('itemViews', id);
     lightboxImg.src = bag.image + '?' + IMG_VERSION;
     lightboxImg.alt = bag.name;
-    lightboxCap.textContent = `${bag.name} · ${bag.price > 0 ? fmtPrice(bag.price) : 'Price on request'}${bag.sold ? ' · SOLD' : ''}`;
+    const priceText = isOnSale(bag)
+      ? `${fmtPrice(bag.salePrice)} (was ${fmtPrice(bag.price)})`
+      : (bag.price > 0 ? fmtPrice(bag.price) : 'Price on request');
+    lightboxCap.textContent = `${bag.name} · ${priceText}${bag.sold ? ' · SOLD' : isOnSale(bag) ? ' · ON SALE' : ''}`;
     lightbox.classList.add('open');
     lightbox.setAttribute('aria-hidden', 'false');
   });

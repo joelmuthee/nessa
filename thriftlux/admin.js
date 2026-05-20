@@ -262,6 +262,7 @@ const nameInput = document.getElementById('nameInput');
 const categoryInput = document.getElementById('categoryInput');
 const descInput = document.getElementById('descInput');
 const priceInput = document.getElementById('priceInput');
+const salePriceInput = document.getElementById('salePriceInput');
 const reelInput = document.getElementById('reelInput');
 const soldInput = document.getElementById('soldInput');
 const editingIdField = document.getElementById('editingId');
@@ -380,6 +381,17 @@ async function saveBag() {
   if (!name) { showToast('Bag name is required.'); return; }
   if (!price || price < 0) { showToast('Enter a valid price.'); return; }
 
+  // Sale price: optional. Must be a positive number below the regular price.
+  // Blank/0 = not on sale. Invalid (>= price) is rejected so it can't silently
+  // produce a "discount" that isn't one.
+  const salePriceRaw = salePriceInput.value.trim();
+  let salePrice = null;
+  if (salePriceRaw !== '') {
+    salePrice = parseInt(salePriceRaw, 10);
+    if (isNaN(salePrice) || salePrice <= 0) { showToast('Sale price must be a positive number, or leave it blank.'); return; }
+    if (salePrice >= price) { showToast('Sale price must be lower than the regular price.'); return; }
+  }
+
   setSaving(true);
   try {
     let imagePath = null;
@@ -404,6 +416,7 @@ async function saveBag() {
       if (imagePath) bag.image = imagePath;
       if (extraPaths.length) bag.images = extraPaths;
       bag.sold = sold;
+      if (salePrice) bag.salePrice = salePrice; else delete bag.salePrice;
       if (!sold) delete bag.soldTo;
       await apiPublish();
       showToast('Bag updated and live!');
@@ -417,6 +430,7 @@ async function saveBag() {
         images: extraPaths,
         createdAt: new Date().toISOString(),
       };
+      if (salePrice) bag.salePrice = salePrice;
       bags.unshift(bag);
       await apiPublish();
       showToast('Bag added and live!');
@@ -435,6 +449,7 @@ function resetForm() {
   editingId = null;
   editingIdField.value = '';
   nameInput.value = ''; descInput.value = ''; priceInput.value = '';
+  salePriceInput.value = '';
   reelInput.value = ''; categoryInput.value = '';
   soldInput.checked = false;
   imageInput.value = ''; imagePreview.innerHTML = ''; stagedImage = null;
@@ -457,6 +472,7 @@ function editBag(id) {
   editingIdField.value = id;
   nameInput.value = bag.name; descInput.value = bag.description || '';
   priceInput.value = bag.price; reelInput.value = bag.reel || bag.instagramUrl || '';
+  salePriceInput.value = bag.salePrice || '';
   categoryInput.value = bag.category || '';
   soldInput.checked = !!bag.sold;
   stagedImage = null;
@@ -874,6 +890,63 @@ document.getElementById('bulkCatSaveBtn').addEventListener('click', async () => 
   catch(err) { showToast('Sync failed: ' + err.message); }
 });
 
+// ---- Bulk sale ----
+// Round to the nearest 50 KSh so sale prices look clean (e.g. 2450 -> 2450,
+// 2333 -> 2350). Nairobi pricing is always in 50/100 increments.
+function roundTo50(n) { return Math.max(50, Math.round(n / 50) * 50); }
+
+window.bulkPutOnSale = () => {
+  if (!bulkSelected.size) return;
+  document.getElementById('bulkSaleCount').textContent = bulkSelected.size;
+  document.getElementById('bulkSalePct').value = '';
+  document.getElementById('bulkSaleFixed').value = '';
+  setSaleMode('pct');
+  document.getElementById('bulkSaleModal').style.display = 'flex';
+};
+function setSaleMode(mode) {
+  document.querySelectorAll('.sale-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.saleMode === mode));
+  document.getElementById('bulkSalePctField').style.display = mode === 'pct' ? '' : 'none';
+  document.getElementById('bulkSaleFixedField').style.display = mode === 'fixed' ? '' : 'none';
+}
+document.querySelectorAll('.sale-mode-btn').forEach(btn =>
+  btn.addEventListener('click', () => setSaleMode(btn.dataset.saleMode)));
+document.getElementById('bulkSaleCancelBtn').addEventListener('click', () => {
+  document.getElementById('bulkSaleModal').style.display = 'none';
+});
+document.getElementById('bulkSaleSaveBtn').addEventListener('click', async () => {
+  const mode = document.querySelector('.sale-mode-btn.active')?.dataset.saleMode || 'pct';
+  let applied = 0, skipped = 0;
+  if (mode === 'pct') {
+    const pct = parseInt(document.getElementById('bulkSalePct').value, 10);
+    if (!pct || pct < 1 || pct > 90) { showToast('Enter a percent between 1 and 90.'); return; }
+    bags.forEach(b => {
+      if (!bulkSelected.has(b.id)) return;
+      const sp = roundTo50(Number(b.price) * (1 - pct / 100));
+      if (sp < Number(b.price)) { b.salePrice = sp; applied++; } else { skipped++; }
+    });
+  } else {
+    const fixed = parseInt(document.getElementById('bulkSaleFixed').value, 10);
+    if (!fixed || fixed <= 0) { showToast('Enter a valid sale price.'); return; }
+    bags.forEach(b => {
+      if (!bulkSelected.has(b.id)) return;
+      if (fixed < Number(b.price)) { b.salePrice = fixed; applied++; } else { skipped++; }
+    });
+  }
+  document.getElementById('bulkSaleModal').style.display = 'none';
+  if (!applied) { showToast('No bags updated — sale price was not below their price.'); return; }
+  try { await apiPublish(); renderAll(); showToast(`On sale: ${applied} bag${applied === 1 ? '' : 's'}${skipped ? ` · ${skipped} skipped` : ''}.`); }
+  catch(err) { showToast('Sync failed: ' + err.message); }
+});
+
+window.bulkRemoveSale = async () => {
+  if (!bulkSelected.size) return;
+  let n = 0;
+  bags.forEach(b => { if (bulkSelected.has(b.id) && b.salePrice != null) { delete b.salePrice; n++; } });
+  if (!n) { showToast('None of the selected bags were on sale.'); return; }
+  try { await apiPublish(); renderAll(); showToast(`Removed sale from ${n} bag${n === 1 ? '' : 's'}.`); }
+  catch(err) { showToast('Sync failed: ' + err.message); }
+};
+
 // ==================== BAG LIST ====================
 let adminSearchQuery = '';
 
@@ -904,7 +977,11 @@ function renderList() {
       <img src="${b.image}" alt="${escapeHtml(b.name)}">
       <div class="admin-card-body">
         <div class="admin-card-name">${escapeHtml(b.name)}</div>
-        <div class="admin-card-price">${fmtKsh(b.price)} ${b.sold ? '· <span style="color:#b00020">SOLD</span>' : ''}</div>
+        <div class="admin-card-price">${
+          (!b.sold && b.salePrice > 0 && b.salePrice < b.price)
+            ? `<s style="color:#999;font-weight:400;">${fmtKsh(b.price)}</s> <span style="color:#c0392b;font-weight:700;">${fmtKsh(b.salePrice)}</span> <span style="color:#c0392b;font-weight:700;">· SALE</span>`
+            : fmtKsh(b.price)
+        } ${b.sold ? '· <span style="color:#b00020">SOLD</span>' : ''}</div>
         <div class="admin-card-stock">${escapeHtml(b.category || 'Uncategorised')}</div>
         ${buyer}
         <div class="admin-card-actions">
