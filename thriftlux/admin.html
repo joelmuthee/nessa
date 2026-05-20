@@ -74,6 +74,7 @@
     <a href="#broadcastDash">WhatsApp Marketing</a>
     <a href="#insightsDash">Insights</a>
     <a href="#allItems">All bags <span class="admin-nav-count" id="navItemCount"></span></a>
+    <a href="#trashSection">Trash <span class="admin-nav-count" id="navTrashCount"></span></a>
   </nav>
 
   <!-- ====== SALES DASHBOARD ====== -->
@@ -300,6 +301,14 @@
 
   <div class="admin-list" id="adminList"></div>
 
+  <!-- ====== TRASH ====== -->
+  <div class="section-divider" id="trashSection">
+    Trash <span id="trashCount">0</span>
+    <button class="btn-admin danger" id="emptyTrashBtn" style="margin-left:auto;font-size:12px;padding:6px 12px;display:none;" onclick="emptyTrash()">Empty trash</button>
+  </div>
+  <p class="sub" style="margin:-6px 0 10px;color:#999;font-size:13px;">Deleted bags are kept here so you can restore them. Stored on this device only.</p>
+  <div class="admin-list" id="trashList"></div>
+
 </div><!-- /dashboard -->
 
 <div class="toast" id="toast"></div>
@@ -371,6 +380,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=10"></script>
+<script src="admin.js?v=11"></script>
 </body>
 </html>
