@@ -96,6 +96,27 @@ function showToast(msg) {
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2800);
 }
+function confirmAction(message, okLabel = 'Confirm') {
+  return new Promise(resolve => {
+    const modal = document.getElementById('confirmModal');
+    const msgEl = document.getElementById('confirmModalMsg');
+    const okBtn = document.getElementById('confirmModalOk');
+    const cancelBtn = document.getElementById('confirmModalCancel');
+    msgEl.textContent = message;
+    okBtn.textContent = okLabel;
+    modal.style.display = 'flex';
+    const cleanup = result => {
+      modal.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
 function setSaving(on) {
   const btn = document.getElementById('saveBtn');
   btn.disabled = on;
@@ -379,7 +400,7 @@ function renderExtrasForEdit(list) {
 }
 
 async function deleteBag(id) {
-  if (!confirm('Delete this bag? This cannot be undone.')) return;
+  if (!await confirmAction('Delete this bag? This cannot be undone.', 'Delete')) return;
   bags = bags.filter(b => b.id !== id);
   try {
     await apiPublish();
@@ -720,7 +741,7 @@ window.bulkSelectAll = () => { bags.forEach(b => bulkSelected.add(b.id)); refres
 window.bulkClear = () => { bulkSelected.clear(); refreshBulkBar(); renderList(); };
 window.bulkDelete = async () => {
   if (!bulkSelected.size) return;
-  if (!confirm(`Delete ${bulkSelected.size} bags? Cannot be undone.`)) return;
+  if (!await confirmAction(`Delete ${bulkSelected.size} bags? Cannot be undone.`, 'Delete')) return;
   bags = bags.filter(b => !bulkSelected.has(b.id));
   bulkSelected.clear();
   try { await apiPublish(); renderAll(); showToast('Deleted.'); }
@@ -863,8 +884,8 @@ function renderInsights() {
 }
 const insightsResetBtn = document.getElementById('insightsResetBtn');
 if (insightsResetBtn) {
-  insightsResetBtn.addEventListener('click', () => {
-    if (!confirm('Clear insights on this device only? Other devices keep their data.')) return;
+  insightsResetBtn.addEventListener('click', async () => {
+    if (!await confirmAction('Clear insights on this device only? Other devices keep their data.')) return;
     localStorage.removeItem(INSIGHTS_KEY);
     renderInsights();
     showToast('Insights reset on this device.');

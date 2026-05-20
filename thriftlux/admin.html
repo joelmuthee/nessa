@@ -359,6 +359,18 @@
   </div>
 </div>
 
-<script src="admin.js?v=9"></script>
+<!-- CONFIRM MODAL (replaces native confirm() — suppressed in in-app webviews) -->
+<div id="confirmModal" class="modal" style="display:none;">
+  <div class="modal-card">
+    <h3 id="confirmModalTitle">Are you sure?</h3>
+    <p class="sub" id="confirmModalMsg"></p>
+    <div class="admin-actions" style="margin-top:18px;">
+      <button class="btn-admin danger" id="confirmModalOk">Delete</button>
+      <button class="btn-admin" id="confirmModalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="admin.js?v=10"></script>
 </body>
 </html>
