@@ -59,7 +59,9 @@ async function apiUploadImage(base64, ext) {
   return `${API_BASE}${data.path}`;
 }
 
-async function apiPublish() {
+// Low-level publish of the current in-memory `bags`. Prefer apiMutateAndPublish
+// for any user-triggered write — direct use risks clobbering concurrent edits.
+async function publishBags() {
   const res = await fetch(`${API_BASE}/api/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
@@ -69,6 +71,23 @@ async function apiPublish() {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Save failed: ${res.status}`);
   }
+}
+
+// Every admin write MUST go through this. It refetches live KV, applies the
+// caller's mutation against the FRESH list, then publishes — so a stale admin
+// tab (or a concurrent direct-API edit) can't silently wipe other changes.
+// That stale-overwrite was the bug that deleted Venessa's bags once before.
+// Mutators close over module-level `bags` and MUST look up bags by id inside
+// the callback — any reference captured before the fetch is stale.
+async function apiMutateAndPublish(mutate) {
+  const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`);
+  if (!res.ok) throw new Error(`Failed to load fresh data: ${res.status}`);
+  const json = await res.json();
+  bags = Array.isArray(json.bags) ? json.bags : [];
+  settings = json.settings || {};
+  backfill();
+  await mutate();
+  await publishBags();
 }
 
 async function loadData() {
@@ -160,16 +179,17 @@ async function restoreItem(id) {
     return;
   }
   const entry = trash[idx];
-  const at = Math.min(typeof entry.index === 'number' ? entry.index : bags.length, bags.length);
-  bags.splice(at, 0, entry.item);
   try {
-    await apiPublish();
+    await apiMutateAndPublish(() => {
+      if (bags.some(b => b.id === id)) return; // already back in catalogue
+      const at = Math.min(typeof entry.index === 'number' ? entry.index : bags.length, bags.length);
+      bags.splice(at, 0, entry.item);
+    });
     trash.splice(idx, 1); setTrash(trash);
     renderAll();
     renderTrash();
     showToast('Bag restored to the catalogue.');
   } catch (err) {
-    bags = bags.filter(b => b.id !== id); // roll back local change
     showToast('Restore failed: ' + err.message);
   }
 }
@@ -299,6 +319,38 @@ function renderExtras() {
 }
 
 // IG quick-add — uses the worker's /api/ig-fetch when available. Fails politely otherwise.
+// Parse an IG caption into { name, price, description, sold } honouring the
+// Nairobi-thrift conventions Venessa writes. Permissive price detection:
+// "@1500 /=", "4000/=", "1500/-", "Ksh 4000". Description keeps the full
+// caption (only the IG handle prefix + hashtags stripped) so product detail
+// survives. Name = the text before the price marker.
+function parseIgCaption(raw) {
+  if (!raw) return { name: '', price: null, description: '', sold: false };
+  const clean = raw
+    .replace(/^[a-z0-9._]+\s+/i, '')   // leading IG handle ("thriftlux.ke ")
+    .replace(/#\w+/g, '')              // hashtags
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  const sold = /\bSOLD(?:\s*OUT)?\b/i.test(clean);
+  const patterns = [
+    /@\s*(\d{2,7})\s*\/?=?/i,
+    /(\d{2,7})\s*\/=/,
+    /(\d{2,7})\s*\/-/,
+    /\b(?:ksh\.?|kes)\s*(\d{2,7})/i,
+  ];
+  let m = null;
+  for (const re of patterns) { const hit = clean.match(re); if (hit) { m = hit; break; } }
+  let name, price;
+  if (m) {
+    name = (clean.slice(0, m.index).trim() || clean.split(/[\n.!?]/)[0] || '').trim();
+    price = parseInt(m[1], 10);
+  } else {
+    name = (clean.split(/[\n.!?]/)[0] || clean).trim();
+    price = null;
+  }
+  return { name, price, description: clean, sold };
+}
+
 document.getElementById('igQuickBtn').addEventListener('click', async () => {
   const url = document.getElementById('igQuickInput').value.trim();
   const status = document.getElementById('igQuickStatus');
@@ -309,7 +361,12 @@ document.getElementById('igQuickBtn').addEventListener('click', async () => {
     if (!r.ok) throw new Error('endpoint not deployed yet');
     const data = await r.json();
     if (data.imageUrl) {
-      const imgRes = await fetch(data.imageUrl);
+      // CORS-critical: IG CDN doesn't send Access-Control-Allow-Origin, so the
+      // image MUST be fetched through the Worker's /api/ig-proxy. A direct
+      // fetch of cdninstagram.com / fbcdn.net throws "Failed to fetch".
+      const proxied = `${API_BASE}/api/ig-proxy?url=${encodeURIComponent(data.imageUrl)}`;
+      const imgRes = await fetch(proxied);
+      if (!imgRes.ok) throw new Error(`ig-proxy ${imgRes.status}`);
       const blob = await imgRes.blob();
       const ext = (blob.type.split('/')[1] || 'jpg').toLowerCase();
       const r2 = new FileReader();
@@ -320,12 +377,11 @@ document.getElementById('igQuickBtn').addEventListener('click', async () => {
       imagePreview.innerHTML = `<img src="${stagedImage.dataUrl}" style="max-width:200px;border-radius:8px;">`;
     }
     if (data.caption) {
-      const firstLine = data.caption.split('\n')[0].trim();
-      const m = firstLine.match(/^(.*?)\s*@(\d+)\s*\/?=?/);
-      if (m) { nameInput.value = m[1].trim(); priceInput.value = m[2]; }
-      else { nameInput.value = firstLine; }
-      descInput.value = data.caption.replace(/#\w+/g, '').trim();
-      if (/SOLD/i.test(data.caption)) soldInput.checked = true;
+      const parsed = parseIgCaption(data.caption);
+      if (parsed.name) nameInput.value = parsed.name;
+      if (parsed.price != null) priceInput.value = parsed.price;
+      descInput.value = parsed.description;
+      if (parsed.sold) soldInput.checked = true;
     }
     if (data.postUrl) reelInput.value = data.postUrl;
     status.className = 'ig-quick-status ok';
@@ -409,30 +465,32 @@ async function saveBag() {
     }
 
     if (editingId) {
-      const bag = bags.find(b => b.id === editingId);
-      if (!bag) return;
-      bag.name = name; bag.description = desc; bag.price = price;
-      bag.category = category; bag.reel = reel; bag.instagramUrl = reel || bag.instagramUrl;
-      if (imagePath) bag.image = imagePath;
-      if (extraPaths.length) bag.images = extraPaths;
-      bag.sold = sold;
-      if (salePrice) bag.salePrice = salePrice; else delete bag.salePrice;
-      if (!sold) delete bag.soldTo;
-      await apiPublish();
+      await apiMutateAndPublish(() => {
+        const bag = bags.find(b => b.id === editingId);
+        if (!bag) throw new Error('Bag no longer exists — refresh admin');
+        bag.name = name; bag.description = desc; bag.price = price;
+        bag.category = category; bag.reel = reel; bag.instagramUrl = reel || bag.instagramUrl;
+        if (imagePath) bag.image = imagePath;
+        if (extraPaths.length) bag.images = extraPaths;
+        bag.sold = sold;
+        if (salePrice) bag.salePrice = salePrice; else delete bag.salePrice;
+        if (!sold) delete bag.soldTo;
+      });
       showToast('Bag updated and live!');
     } else {
       if (!stagedImage) { showToast('Add a bag image.'); setSaving(false); return; }
-      const id = 'bag_' + Date.now();
-      const bag = {
-        id, name, description: desc, category, price,
-        reel, instagramUrl: reel, sold,
-        image: imagePath,
-        images: extraPaths,
-        createdAt: new Date().toISOString(),
-      };
-      if (salePrice) bag.salePrice = salePrice;
-      bags.unshift(bag);
-      await apiPublish();
+      await apiMutateAndPublish(() => {
+        const id = 'bag_' + Date.now();
+        const bag = {
+          id, name, description: desc, category, price,
+          reel, instagramUrl: reel, sold,
+          image: imagePath,
+          images: extraPaths,
+          createdAt: new Date().toISOString(),
+        };
+        if (salePrice) bag.salePrice = salePrice;
+        bags.unshift(bag);
+      });
       showToast('Bag added and live!');
     }
     resetForm();
@@ -514,12 +572,14 @@ function renderExtrasForEdit(list) {
 
 async function deleteBag(id) {
   if (!await confirmAction('Delete this bag? You can restore it from Trash below.', 'Delete')) return;
-  const _idx = bags.findIndex(b => b.id === id);
-  const _removed = _idx === -1 ? null : bags[_idx];
-  bags = bags.filter(b => b.id !== id);
+  let removed = null, removedIdx = -1;
   try {
-    await apiPublish();
-    if (_removed) trashPush([{ item: _removed, index: _idx }]);
+    await apiMutateAndPublish(() => {
+      removedIdx = bags.findIndex(b => b.id === id);
+      removed = removedIdx === -1 ? null : bags[removedIdx];
+      bags = bags.filter(b => b.id !== id);
+    });
+    if (removed) trashPush([{ item: removed, index: removedIdx }]);
     renderAll();
     renderTrash();
     showToast('Bag deleted — restore it from Trash.');
@@ -530,13 +590,14 @@ async function toggleSold(id) {
   const bag = bags.find(b => b.id === id);
   if (!bag) return;
   if (bag.sold) {
-    bag.sold = false;
-    delete bag.soldTo;
     try {
-      await apiPublish();
+      await apiMutateAndPublish(() => {
+        const b = bags.find(x => x.id === id);
+        if (b) { b.sold = false; delete b.soldTo; }
+      });
       renderAll();
       showToast('Marked as available.');
-    } catch(err) { bag.sold = true; showToast('Sync failed: ' + err.message); }
+    } catch(err) { showToast('Sync failed: ' + err.message); }
     return;
   }
   openBuyerModal(bag);
@@ -560,25 +621,34 @@ function closeBuyerModal() { buyerModal.style.display = 'none'; pendingBag = nul
 
 async function commitSold(withBuyer) {
   if (!pendingBag) return;
-  const bag = pendingBag;
-  bag.sold = true;
+  const targetId = pendingBag.id;
+  let buyerInfo = null;
   if (withBuyer) {
     const name = buyerName.value.trim();
     const phone = buyerPhone.value.trim().replace(/[^0-9+]/g, '');
     const notes = buyerNotes.value.trim();
     if (!name && !phone) { showToast('Add a name or phone, or hit Skip.'); return; }
-    bag.soldTo = { name, phone, notes, soldAt: new Date().toISOString(), salePrice: Number(bag.price) || 0 };
-  } else {
-    bag.soldTo = { soldAt: new Date().toISOString(), salePrice: Number(bag.price) || 0 };
+    buyerInfo = { name, phone, notes };
   }
   closeBuyerModal();
   try {
-    await apiPublish();
+    let soldBag = null;
+    await apiMutateAndPublish(() => {
+      const b = bags.find(x => x.id === targetId);
+      if (!b) throw new Error('Bag no longer exists — refresh admin');
+      b.sold = true;
+      // Record what it actually sold for: the sale price if it was on sale, else the regular price.
+      const paid = (b.salePrice > 0 && b.salePrice < b.price) ? b.salePrice : (Number(b.price) || 0);
+      b.soldTo = withBuyer
+        ? { ...buyerInfo, soldAt: new Date().toISOString(), salePrice: paid }
+        : { soldAt: new Date().toISOString(), salePrice: paid };
+      delete b.salePrice; // no longer "on sale" once sold
+      soldBag = b;
+    });
     renderAll();
     showToast(withBuyer ? 'SOLD. Buyer saved.' : 'Marked as SOLD.');
-    if (withBuyer && bag.soldTo.phone) sendBuyerToGHL(bag);
+    if (withBuyer && soldBag?.soldTo?.phone) sendBuyerToGHL(soldBag);
   } catch(err) {
-    bag.sold = false; delete bag.soldTo;
     showToast('Sync failed: ' + err.message);
   }
 }
@@ -859,22 +929,40 @@ window.bulkClear = () => { bulkSelected.clear(); refreshBulkBar(); renderList();
 window.bulkDelete = async () => {
   if (!bulkSelected.size) return;
   if (!await confirmAction(`Delete ${bulkSelected.size} bags? You can restore them from Trash below.`, 'Delete')) return;
-  const _removed = [];
-  bags.forEach((b, i) => { if (bulkSelected.has(b.id)) _removed.push({ item: b, index: i }); });
-  bags = bags.filter(b => !bulkSelected.has(b.id));
-  bulkSelected.clear();
-  try { await apiPublish(); trashPush(_removed); renderAll(); renderTrash(); showToast('Deleted — restore from Trash.'); }
-  catch(err) { showToast('Sync failed: ' + err.message); }
+  const ids = new Set(bulkSelected);
+  let removed = [];
+  try {
+    await apiMutateAndPublish(() => {
+      removed = [];
+      bags.forEach((b, i) => { if (ids.has(b.id)) removed.push({ item: b, index: i }); });
+      bags = bags.filter(b => !ids.has(b.id));
+    });
+    trashPush(removed);
+    bulkSelected.clear();
+    renderAll(); renderTrash();
+    showToast('Deleted — restore from Trash.');
+  } catch(err) { showToast('Sync failed: ' + err.message); }
 };
 window.bulkMarkSold = async () => {
-  bags.forEach(b => { if (bulkSelected.has(b.id) && !b.sold) { b.sold = true; b.soldTo = { salePrice: Number(b.price) || 0, soldAt: new Date().toISOString() }; } });
-  try { await apiPublish(); renderAll(); showToast('Marked as sold.'); }
-  catch(err) { showToast('Sync failed: ' + err.message); }
+  const ids = new Set(bulkSelected);
+  try {
+    await apiMutateAndPublish(() => {
+      bags.forEach(b => { if (ids.has(b.id) && !b.sold) {
+        const paid = (b.salePrice > 0 && b.salePrice < b.price) ? b.salePrice : (Number(b.price) || 0);
+        b.sold = true; b.soldTo = { salePrice: paid, soldAt: new Date().toISOString() }; delete b.salePrice;
+      } });
+    });
+    renderAll(); showToast('Marked as sold.');
+  } catch(err) { showToast('Sync failed: ' + err.message); }
 };
 window.bulkMarkAvailable = async () => {
-  bags.forEach(b => { if (bulkSelected.has(b.id) && b.sold) { b.sold = false; delete b.soldTo; } });
-  try { await apiPublish(); renderAll(); showToast('Marked as available.'); }
-  catch(err) { showToast('Sync failed: ' + err.message); }
+  const ids = new Set(bulkSelected);
+  try {
+    await apiMutateAndPublish(() => {
+      bags.forEach(b => { if (ids.has(b.id) && b.sold) { b.sold = false; delete b.soldTo; } });
+    });
+    renderAll(); showToast('Marked as available.');
+  } catch(err) { showToast('Sync failed: ' + err.message); }
 };
 window.bulkSetCategory = () => {
   document.getElementById('bulkCatCount').textContent = bulkSelected.size;
@@ -884,10 +972,14 @@ document.getElementById('bulkCatCancelBtn').addEventListener('click', () => { do
 document.getElementById('bulkCatSaveBtn').addEventListener('click', async () => {
   const cat = document.getElementById('bulkCatSelect').value;
   if (!cat) { showToast('Pick a category.'); return; }
-  bags.forEach(b => { if (bulkSelected.has(b.id)) b.category = cat; });
+  const ids = new Set(bulkSelected);
   document.getElementById('bulkCatModal').style.display = 'none';
-  try { await apiPublish(); renderAll(); showToast('Categories updated.'); }
-  catch(err) { showToast('Sync failed: ' + err.message); }
+  try {
+    await apiMutateAndPublish(() => {
+      bags.forEach(b => { if (ids.has(b.id)) b.category = cat; });
+    });
+    renderAll(); showToast('Categories updated.');
+  } catch(err) { showToast('Sync failed: ' + err.message); }
 });
 
 // ---- Bulk sale ----
@@ -915,36 +1007,46 @@ document.getElementById('bulkSaleCancelBtn').addEventListener('click', () => {
 });
 document.getElementById('bulkSaleSaveBtn').addEventListener('click', async () => {
   const mode = document.querySelector('.sale-mode-btn.active')?.dataset.saleMode || 'pct';
-  let applied = 0, skipped = 0;
+  const ids = new Set(bulkSelected);
+  // Validate input up-front (before the fresh fetch) so we can bail early.
+  let pct = null, fixed = null;
   if (mode === 'pct') {
-    const pct = parseInt(document.getElementById('bulkSalePct').value, 10);
+    pct = parseInt(document.getElementById('bulkSalePct').value, 10);
     if (!pct || pct < 1 || pct > 90) { showToast('Enter a percent between 1 and 90.'); return; }
-    bags.forEach(b => {
-      if (!bulkSelected.has(b.id)) return;
-      const sp = roundTo50(Number(b.price) * (1 - pct / 100));
-      if (sp < Number(b.price)) { b.salePrice = sp; applied++; } else { skipped++; }
-    });
   } else {
-    const fixed = parseInt(document.getElementById('bulkSaleFixed').value, 10);
+    fixed = parseInt(document.getElementById('bulkSaleFixed').value, 10);
     if (!fixed || fixed <= 0) { showToast('Enter a valid sale price.'); return; }
-    bags.forEach(b => {
-      if (!bulkSelected.has(b.id)) return;
-      if (fixed < Number(b.price)) { b.salePrice = fixed; applied++; } else { skipped++; }
-    });
   }
   document.getElementById('bulkSaleModal').style.display = 'none';
-  if (!applied) { showToast('No bags updated — sale price was not below their price.'); return; }
-  try { await apiPublish(); renderAll(); showToast(`On sale: ${applied} bag${applied === 1 ? '' : 's'}${skipped ? ` · ${skipped} skipped` : ''}.`); }
-  catch(err) { showToast('Sync failed: ' + err.message); }
+  let applied = 0, skipped = 0;
+  try {
+    await apiMutateAndPublish(() => {
+      applied = 0; skipped = 0;
+      bags.forEach(b => {
+        if (!ids.has(b.id) || b.sold) return;
+        const sp = mode === 'pct' ? roundTo50(Number(b.price) * (1 - pct / 100)) : fixed;
+        if (sp < Number(b.price)) { b.salePrice = sp; applied++; } else { skipped++; }
+      });
+      if (!applied) throw new Error('No bags updated — sale price was not below their price.');
+    });
+    renderAll();
+    showToast(`On sale: ${applied} bag${applied === 1 ? '' : 's'}${skipped ? ` · ${skipped} skipped` : ''}.`);
+  } catch(err) { showToast(err.message.startsWith('No bags') ? err.message : 'Sync failed: ' + err.message); }
 });
 
 window.bulkRemoveSale = async () => {
   if (!bulkSelected.size) return;
+  const ids = new Set(bulkSelected);
   let n = 0;
-  bags.forEach(b => { if (bulkSelected.has(b.id) && b.salePrice != null) { delete b.salePrice; n++; } });
-  if (!n) { showToast('None of the selected bags were on sale.'); return; }
-  try { await apiPublish(); renderAll(); showToast(`Removed sale from ${n} bag${n === 1 ? '' : 's'}.`); }
-  catch(err) { showToast('Sync failed: ' + err.message); }
+  try {
+    await apiMutateAndPublish(() => {
+      n = 0;
+      bags.forEach(b => { if (ids.has(b.id) && b.salePrice != null) { delete b.salePrice; n++; } });
+      if (!n) throw new Error('None of the selected bags were on sale.');
+    });
+    renderAll();
+    showToast(`Removed sale from ${n} bag${n === 1 ? '' : 's'}.`);
+  } catch(err) { showToast(err.message.startsWith('None') ? err.message : 'Sync failed: ' + err.message); }
 };
 
 // ==================== BAG LIST ====================
