@@ -67,8 +67,8 @@
 
   <!-- ====== STICKY SUB-NAV ====== -->
   <nav class="admin-nav" id="adminNav">
-    <a href="#addForm" class="admin-nav-cta">+ Add new bag</a>
-    <a href="#igSyncDash">Sync IG</a>
+    <a href="#igSyncDash" class="admin-nav-cta">⚡ Sync from Instagram</a>
+    <a href="#addForm">+ Add manually</a>
     <a href="#salesDash">Sales</a>
     <a href="#invDash">Inventory</a>
     <a href="#broadcastDash">WhatsApp Marketing</a>
@@ -120,25 +120,7 @@
       Each bag is one-of-one. When a bag sells it stays in the catalogue with a SOLD badge — that keeps the archive looking full and works as social proof.
     </p>
     <div class="inv-kpi-grid" id="invKpiGrid"></div>
-    <div class="section-divider" style="margin-top:24px;">Catalogue <span id="invListMeta">most recent first</span></div>
-    <div class="inv-filter-bar filter-pills" id="invFilterBar"></div>
-    <div class="inv-table-wrap">
-      <table class="inv-table" id="invTable">
-        <thead>
-          <tr>
-            <th style="width:50px"></th>
-            <th>Bag</th>
-            <th>Category</th>
-            <th>Price</th>
-            <th>Status</th>
-            <th>Added</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="invTableBody"></tbody>
-      </table>
-    </div>
-    <button class="btn-admin" id="invShowMore" style="display:none;width:100%;margin-top:14px;"></button>
+    <p style="font-size:12.5px;color:#8a857f;margin-top:12px;">Per-bag status lives in <a href="#allItems" style="color:var(--gold-deep,#a88847);font-weight:600;">All bags</a> below.</p>
   </section>
 
   <!-- ====== WHATSAPP MARKETING ====== -->
@@ -377,6 +359,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=8"></script>
+<script src="admin.js?v=9"></script>
 </body>
 </html>

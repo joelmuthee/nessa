@@ -557,13 +557,15 @@ function renderInventory() {
   `;
 
   const fb = document.getElementById('invFilterBar');
-  const pills = [
-    { k: 'all', l: 'All', n: total },
-    { k: 'available', l: 'Available', n: available },
-    { k: 'sold', l: 'Sold', n: sold },
-  ];
-  fb.innerHTML = pills.map(p => `<button class="pill ${invFilter === p.k ? 'active' : ''}" data-k="${p.k}">${p.l} <small>(${p.n})</small></button>`).join('');
-  fb.querySelectorAll('.pill').forEach(b => b.addEventListener('click', () => { invFilter = b.dataset.k; invShowAll = false; renderInventory(); }));
+  if (fb) {
+    const pills = [
+      { k: 'all', l: 'All', n: total },
+      { k: 'available', l: 'Available', n: available },
+      { k: 'sold', l: 'Sold', n: sold },
+    ];
+    fb.innerHTML = pills.map(p => `<button class="pill ${invFilter === p.k ? 'active' : ''}" data-k="${p.k}">${p.l} <small>(${p.n})</small></button>`).join('');
+    fb.querySelectorAll('.pill').forEach(b => b.addEventListener('click', () => { invFilter = b.dataset.k; invShowAll = false; renderInventory(); }));
+  }
 
   let rows = bags.slice();
   if (invFilter === 'available') rows = rows.filter(b => !isSold(b));
@@ -572,7 +574,8 @@ function renderInventory() {
 
   const shown = invShowAll ? rows : rows.slice(0, INV_PAGE_SIZE);
   const more = rows.length - shown.length;
-  document.getElementById('invTableBody').innerHTML = shown.map(b => `
+  const invBody = document.getElementById('invTableBody');
+  if (invBody) invBody.innerHTML = shown.map(b => `
     <tr>
       <td><img src="${b.image}" class="item-img" alt=""></td>
       <td><div style="font-weight:600;line-height:1.3;">${escapeHtml(b.name)}</div><div style="font-size:11px;color:#999;">${escapeHtml(b.id)}</div></td>
@@ -585,9 +588,11 @@ function renderInventory() {
   `).join('');
 
   const btn = document.getElementById('invShowMore');
-  if (more > 0) { btn.style.display = 'block'; btn.textContent = 'Show all ' + rows.length; btn.onclick = () => { invShowAll = true; renderInventory(); }; }
-  else if (invShowAll && rows.length > INV_PAGE_SIZE) { btn.style.display = 'block'; btn.textContent = 'Show fewer'; btn.onclick = () => { invShowAll = false; renderInventory(); }; }
-  else { btn.style.display = 'none'; }
+  if (btn) {
+    if (more > 0) { btn.style.display = 'block'; btn.textContent = 'Show all ' + rows.length; btn.onclick = () => { invShowAll = true; renderInventory(); }; }
+    else if (invShowAll && rows.length > INV_PAGE_SIZE) { btn.style.display = 'block'; btn.textContent = 'Show fewer'; btn.onclick = () => { invShowAll = false; renderInventory(); }; }
+    else { btn.style.display = 'none'; }
+  }
 }
 
 // ==================== WHATSAPP MARKETING ====================
