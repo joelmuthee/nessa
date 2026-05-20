@@ -344,6 +344,96 @@ img { max-width: 100%; display: block; }
 .btn-card:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-card .wa-icon { vertical-align: -3px; margin-right: 6px; }
 
+/* ===== NESSA CROSS-PROMO =====
+   Editorial dark band between the gallery and About. Cross-sells Venessa's
+   makeup + wardrobe styling work (nessa.co.ke). Mirrors the hero's black+gold
+   treatment so it reads on-brand, not like an ad. The .nessa-inner caps line
+   length and supplies the side gutters on mobile (the section itself is
+   full-bleed dark). */
+.nessa-promo {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0d0d0d 0%, #1a1510 52%, #0d0d0d 100%);
+  color: #fff;
+  text-align: center;
+  border-top: 1px solid rgba(201,169,97,0.20);
+  border-bottom: 1px solid rgba(201,169,97,0.20);
+  padding: 104px 0;
+}
+.nessa-promo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 16% 28%, rgba(201,169,97,0.16), transparent 46%),
+    radial-gradient(circle at 84% 72%, rgba(201,169,97,0.11), transparent 46%);
+  pointer-events: none;
+}
+.nessa-inner {
+  position: relative;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 24px;        /* side gutters so copy never touches the screen edge */
+}
+.nessa-eyebrow {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 20px;
+}
+.nessa-title {
+  font-family: var(--serif);
+  font-size: clamp(34px, 6vw, 58px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  color: #fff;
+  margin-bottom: 22px;
+}
+.nessa-title em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--gold);
+}
+.nessa-sub {
+  font-size: 17px;
+  line-height: 1.6;
+  color: #cfc8ba;
+  max-width: 520px;
+  margin: 0 auto 30px;
+}
+.nessa-services {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 38px;
+}
+.nessa-chip {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  background: rgba(201,169,97,0.08);
+  border: 1px solid rgba(201,169,97,0.32);
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+.nessa-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.nessa-cta svg { transition: transform 0.22s; }
+.nessa-cta:hover svg { transform: translate(2px, -2px); }
+@media (max-width: 600px) {
+  .nessa-promo { padding: 72px 0; }
+  .nessa-sub { font-size: 16px; }
+}
+
 /* ===== INFO ===== */
 .info {
   background: #ffffff;
