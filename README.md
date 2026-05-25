@@ -4,7 +4,7 @@
 
 Vanessa's portfolio: Makeup + Wardrobe Styling + ThriftLux Bags. Three lines of work, one phone number.
 
-- **Hub home** (`index.html`) - 3-tile chooser, links Bags out to thriftlux.essenceautomations.com
+- **Hub home** (`index.html`) - 3-tile chooser, links Bags out to nessa.co.ke/thriftlux/
 - **Makeup** (`makeup.html`) - gallery of makeup work, tap card -> IG post
 - **Styling** (`styling.html`) - gallery of wardrobe / costume work
 - **Data** (`data.json`) - 142 posts pulled from @nessamakeupart and auto-classified

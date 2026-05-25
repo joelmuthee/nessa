@@ -14,7 +14,7 @@
 
 1. **Professional makeup** — her core trade. Bio: "Makeup is my art. MUA…"
 2. **Wardrobe / costume styling** — Kalasha Nominee 2022 for Best Costume Designer. Real award-nominated portfolio with commercial shoots (Premier Bet, Farmer's Choice, etc.).
-3. **ThriftLux** — pre-loved designer bags, the existing catalog at `thriftlux.essenceautomations.com` (her side hustle).
+3. **ThriftLux** — pre-loved designer bags, the existing catalog at `nessa.co.ke/thriftlux/` (her side hustle).
 
 Single IG for makeup + styling: [@nessamakeupart](https://www.instagram.com/nessamakeupart/) (417 posts, 2,545 followers). Bags has its own: [@thriftlux.ke](https://www.instagram.com/thriftlux.ke/).
 
@@ -39,7 +39,7 @@ Single IG for makeup + styling: [@nessamakeupart](https://www.instagram.com/ness
 |---|---|---|---|
 | Makeup | "Makeup" | "Professional MUA. Editorial, beauty, bridal." | `/makeup.html` (internal) |
 | Styling | "Wardrobe Styling" | "Kalasha-nominated costume designer. Editorial + commercial styling." | `/styling.html` (internal) |
-| Bags | "ThriftLux Bags" | "Curated pre-loved designer handbags." | `https://thriftlux.essenceautomations.com` (external, new tab) |
+| Bags | "ThriftLux Bags" | "Curated pre-loved designer handbags." | `https://nessa.co.ke/thriftlux/` (external, new tab) |
 
 Hero above the tiles: 1-sentence intro, her photo / wordmark, single WhatsApp CTA in the nav.
 
