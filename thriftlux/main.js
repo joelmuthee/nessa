@@ -329,3 +329,29 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   renderCategoryPills();
   render();
 })();
+
+// ----- Back to top -----
+(function () {
+  const btn = document.getElementById('toTop');
+  if (!btn) return;
+  const SHOW_AT = 600; // px scrolled before the arrow appears
+  function onScroll() {
+    if (window.scrollY > SHOW_AT) {
+      btn.hidden = false;
+      // next frame so the transition runs
+      requestAnimationFrame(() => btn.classList.add('show'));
+    } else {
+      btn.classList.remove('show');
+    }
+  }
+  // Hide fully after the fade-out so it's not focusable when off-screen
+  btn.addEventListener('transitionend', () => {
+    if (!btn.classList.contains('show')) btn.hidden = true;
+  });
+  btn.addEventListener('click', () => {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  });
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
