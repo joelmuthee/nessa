@@ -161,6 +161,25 @@
   <!-- ====== LOYALTY PROGRAM ====== -->
   <section class="dash" id="loyaltyDash">
     <h2 class="dash-title">Loyalty Program</h2>
+
+    <!-- Locked teaser — shown until the feature is unlocked from billing -->
+    <div id="loyaltyLocked" class="loyalty-locked" style="display:none;">
+      <div class="loyalty-locked-badge">🔒 Premium add-on</div>
+      <h3>Turn one-time buyers into regulars</h3>
+      <p>Every time you save a buyer's name and phone on a sale, the Loyalty Program builds them a stamp card automatically. See who's close to a reward, redeem in one tap, and send WhatsApp thank-yous with their points. Nothing extra to type, nothing shown on the public site.</p>
+      <ul class="loyalty-locked-features">
+        <li>Automatic customer list, built from your sales</li>
+        <li>Stamps-per-purchase or points-per-spend, your choice</li>
+        <li>One-tap WhatsApp thank-you with live points after every sale</li>
+        <li>"Reward ready" alerts and bulk WhatsApp nudges</li>
+      </ul>
+      <div class="loyalty-locked-price">Ksh 5,000 <span>one-time unlock</span></div>
+      <a class="btn-admin gold" id="loyaltyUnlockCta" target="_blank" rel="noopener"
+         href="https://wa.me/254720615606?text=Hi%2C%20I%27d%20like%20to%20unlock%20the%20Loyalty%20Program%20for%20ThriftLux%20(Ksh%205%2C000%20one-time).">Unlock the Loyalty Program →</a>
+    </div>
+
+    <!-- Unlocked dashboard -->
+    <div id="loyaltyUnlocked">
     <p style="font-size:13.5px;color:#4a4540;margin:-8px 0 16px;">
       Reward repeat buyers. Customers build up automatically from the name and phone you save when marking a bag sold — nothing extra to type. Read a customer their progress at the counter, or tap WhatsApp to nudge them. None of this shows on the public site.
     </p>
@@ -207,6 +226,7 @@
       <button class="btn-admin gold" id="loyaltyMsgReadyBtn">Message everyone with a reward ready →</button>
     </div>
     <div class="loyalty-list" id="loyaltyList"></div>
+    </div><!-- /#loyaltyUnlocked -->
   </section>
 
   <!-- ====== INSIGHTS (per-browser, NOT 'Analytics' — locked rule in CATALOG-STANDARDS.md) ====== -->

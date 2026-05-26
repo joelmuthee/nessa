@@ -8,6 +8,7 @@ const ADMIN_TOKEN = atob('TGRCVjlCUEJzNTBrWXBzQjdNWUs1eDlUR1ZNNlh3bE5VUEMzTVRzN3
 let bags = [];
 let settings = {};
 let accountSuspended = false;
+let loyaltyUnlocked = false;
 let editingId = null;
 // stagedImage = { base64, ext, dataUrl } | null
 let stagedImage = null;
@@ -86,6 +87,7 @@ async function apiMutateAndPublish(mutate) {
   const json = await res.json();
   bags = Array.isArray(json.bags) ? json.bags : [];
   settings = json.settings || {};
+  loyaltyUnlocked = !!json.loyaltyUnlocked;
   backfill();
   await mutate();
   await publishBags();
@@ -97,6 +99,7 @@ async function loadData() {
   bags = json.bags || [];
   settings = json.settings || {};
   accountSuspended = !!json.suspended;
+  loyaltyUnlocked = !!json.loyaltyUnlocked;
   backfill();
 }
 
@@ -663,7 +666,7 @@ async function commitSold(withBuyer) {
     });
     renderAll();
     showToast(withBuyer ? 'SOLD. Buyer saved.' : 'Marked as SOLD.');
-    if (withBuyer && soldBag?.soldTo?.phone) { sendBuyerToGHL(soldBag); openSaleThanks(soldBag); }
+    if (withBuyer && soldBag?.soldTo?.phone) { sendBuyerToGHL(soldBag); if (loyaltyUnlocked) openSaleThanks(soldBag); }
   } catch(err) {
     showToast('Sync failed: ' + err.message);
   }
@@ -1009,6 +1012,15 @@ function syncLoyaltyModeUI(mode) {
 }
 
 function renderLoyalty() {
+  // Paid-feature gate: show the teaser until billing flips loyalty_unlocked.
+  const locked = !loyaltyUnlocked;
+  const lockedEl = document.getElementById('loyaltyLocked');
+  const unlockedEl = document.getElementById('loyaltyUnlocked');
+  if (lockedEl) lockedEl.style.display = locked ? '' : 'none';
+  if (unlockedEl) unlockedEl.style.display = locked ? 'none' : '';
+  const navLock = document.getElementById('navLoyaltyCount');
+  if (locked) { if (navLock) navLock.textContent = '🔒'; return; }
+
   const conf = loyaltyConf();
   // Populate config inputs (skip any the owner is actively editing).
   const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };

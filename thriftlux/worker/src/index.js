@@ -432,6 +432,9 @@ export default {
       // Billing kill-switch: stored in its own KV key so the owner's admin
       // publishes (which only write "data") can never clear it.
       data.suspended = (await env.BAGS.get("suspended")) === "1";
+      // Paid-feature gate: loyalty program. Own KV key (like "suspended") so the
+      // owner's /api/bulk publishes can never self-unlock it. Flipped by billing.
+      data.loyaltyUnlocked = (await env.BAGS.get("loyalty_unlocked")) === "1";
       return json(data, 200, { "Cache-Control": "public, max-age=10" });
     }
 
@@ -443,6 +446,16 @@ export default {
       const suspended = !!body.suspended;
       await env.BAGS.put("suspended", suspended ? "1" : "0");
       return json({ ok: true, suspended });
+    }
+
+    // Billing only: flip the loyalty paid-feature unlock. MASTER_TOKEN gated, like /api/suspend.
+    if (request.method === "POST" && path === "/api/loyalty-unlock") {
+      if (!isMaster(request, env)) return json({ error: "unauthorized" }, 401);
+      let body;
+      try { body = await request.json(); } catch { return json({ error: "invalid json" }, 400); }
+      const unlocked = !!body.unlocked;
+      await env.BAGS.put("loyalty_unlocked", unlocked ? "1" : "0");
+      return json({ ok: true, unlocked });
     }
 
     const imgMatch = path.match(/^\/img\/(.+)$/);
