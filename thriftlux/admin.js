@@ -663,7 +663,7 @@ async function commitSold(withBuyer) {
     });
     renderAll();
     showToast(withBuyer ? 'SOLD. Buyer saved.' : 'Marked as SOLD.');
-    if (withBuyer && soldBag?.soldTo?.phone) sendBuyerToGHL(soldBag);
+    if (withBuyer && soldBag?.soldTo?.phone) { sendBuyerToGHL(soldBag); openSaleThanks(soldBag); }
   } catch(err) {
     showToast('Sync failed: ' + err.message);
   }
@@ -934,6 +934,267 @@ document.getElementById('broadcastStartBtn').addEventListener('click', () => {
 });
 
 
+// ==================== LOYALTY PROGRAM ====================
+// Customers are derived from sold bags grouped by soldTo.phone — there's no
+// separate customer store. Earned stamps/points are a pure function of sales,
+// so only redemptions are persisted (in settings.loyalty.redemptions). That
+// keeps sales the single source of truth; available = earned - redeemed.
+const DEFAULT_LOYALTY = { enabled: true, mode: 'stamps', threshold: 10, pointsPerKsh: 0.01, rewardLabel: 'a free bag' };
+let loyaltyQuery = '';
+
+function loyaltyConf() {
+  const l = settings.loyalty || {};
+  return {
+    enabled: l.enabled !== false,
+    mode: l.mode === 'spend' ? 'spend' : 'stamps',
+    threshold: Number(l.threshold) > 0 ? Number(l.threshold) : DEFAULT_LOYALTY.threshold,
+    pointsPerKsh: Number(l.pointsPerKsh) > 0 ? Number(l.pointsPerKsh) : DEFAULT_LOYALTY.pointsPerKsh,
+    rewardLabel: (l.rewardLabel || '').trim() || DEFAULT_LOYALTY.rewardLabel,
+    redemptions: Array.isArray(l.redemptions) ? l.redemptions : [],
+  };
+}
+const phoneKey = p => String(p == null ? '' : p).replace(/[^0-9]/g, '');
+
+function customerLedger() {
+  const map = new Map();
+  for (const b of bags) {
+    const s = b.soldTo;
+    if (!s || !s.phone) continue;
+    const phone = phoneKey(s.phone);
+    if (phone.length < 9) continue;
+    let c = map.get(phone);
+    if (!c) { c = { phone, name: s.name || '', purchases: [], spend: 0, lastAt: 0 }; map.set(phone, c); }
+    c.purchases.push({ bagName: b.name, price: salePrice(b), at: s.soldAt });
+    c.spend += salePrice(b);
+    const at = s.soldAt ? new Date(s.soldAt).getTime() : 0;
+    if (at >= c.lastAt) { c.lastAt = at; if (s.name) c.name = s.name; }
+  }
+  return [...map.values()];
+}
+
+function loyaltyStatus(c, conf) {
+  const earned = conf.mode === 'spend' ? Math.floor(c.spend * conf.pointsPerKsh) : c.purchases.length;
+  const redeemed = conf.redemptions
+    .filter(r => phoneKey(r.phone) === c.phone)
+    .reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
+  const available = Math.max(0, earned - redeemed);
+  return {
+    earned, redeemed, available,
+    ready: Math.floor(available / conf.threshold),
+    progress: available % conf.threshold,
+    threshold: conf.threshold,
+    unit: conf.mode === 'spend' ? 'points' : 'stamps',
+  };
+}
+
+function loyaltyMessage(c, conf, st) {
+  const first = (c.name || 'there').split(' ')[0];
+  let msg = `Hi ${first}! `;
+  if (st.ready >= 1) {
+    msg += `Good news, you've earned ${conf.rewardLabel} on your ThriftLux loyalty card. Claim it on your next visit 💛`;
+  } else if (conf.mode === 'spend') {
+    msg += `You're at ${st.progress} of ${conf.threshold} points on your ThriftLux loyalty card. A little more and you unlock ${conf.rewardLabel} 💛`;
+  } else {
+    const remaining = conf.threshold - st.progress;
+    msg += `You've collected ${st.progress} of ${conf.threshold} stamps with ThriftLux. ${remaining} more and ${conf.rewardLabel} is yours 💛`;
+  }
+  return msg + `\n— Venessa, ThriftLux`;
+}
+
+function syncLoyaltyModeUI(mode) {
+  const ppk = document.getElementById('loyaltyPpkField');
+  const lbl = document.getElementById('loyaltyThresholdLabel');
+  if (ppk) ppk.style.display = mode === 'spend' ? '' : 'none';
+  if (lbl) lbl.textContent = mode === 'spend' ? 'Points needed for a reward' : 'Stamps needed for a reward';
+}
+
+function renderLoyalty() {
+  const conf = loyaltyConf();
+  // Populate config inputs (skip any the owner is actively editing).
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
+  const enabledEl = document.getElementById('loyaltyEnabled');
+  if (enabledEl && document.activeElement !== enabledEl) enabledEl.checked = conf.enabled;
+  const modeEl = document.getElementById('loyaltyMode');
+  if (modeEl && document.activeElement !== modeEl) modeEl.value = conf.mode;
+  setVal('loyaltyThreshold', conf.threshold);
+  setVal('loyaltyPpk', conf.pointsPerKsh);
+  setVal('loyaltyReward', conf.rewardLabel);
+  syncLoyaltyModeUI(modeEl ? modeEl.value : conf.mode);
+
+  const withStatus = customerLedger().map(c => ({ c, st: loyaltyStatus(c, conf) }));
+  const total = withStatus.length;
+  const repeat = withStatus.filter(x => x.c.purchases.length >= 2).length;
+  const readyCount = withStatus.filter(x => x.st.ready >= 1).length;
+
+  const nav = document.getElementById('navLoyaltyCount'); if (nav) nav.textContent = total || '';
+
+  const kpi = document.getElementById('loyaltyKpiGrid');
+  if (kpi) kpi.innerHTML = `
+    <div class="inv-kpi"><div class="inv-kpi-label">Customers</div><div class="inv-kpi-val">${total}</div><div class="inv-kpi-sub">${repeat} repeat buyer${repeat === 1 ? '' : 's'}</div></div>
+    <div class="inv-kpi success"><div class="inv-kpi-label">Rewards ready</div><div class="inv-kpi-val">${readyCount}</div><div class="inv-kpi-sub">can claim now</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Redeemed</div><div class="inv-kpi-val">${conf.redemptions.length}</div><div class="inv-kpi-sub">rewards given all-time</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Reward</div><div class="inv-kpi-val" style="font-size:15px;line-height:1.35;">${escapeHtml(conf.rewardLabel)}</div><div class="inv-kpi-sub">${conf.threshold} ${conf.mode === 'spend' ? 'points' : 'stamps'} each</div></div>
+  `;
+
+  const list = document.getElementById('loyaltyList');
+  if (!list) return;
+  if (!total) {
+    list.innerHTML = '<p style="font-size:13px;color:#999;padding:14px;">No customers yet. Save a buyer\'s name and phone when you mark a bag sold and they\'ll appear here.</p>';
+    return;
+  }
+  const q = loyaltyQuery.toLowerCase();
+  const rows = withStatus
+    .filter(({ c }) => !q || (c.name || '').toLowerCase().includes(q) || c.phone.includes(q))
+    .sort((a, b) => (b.st.ready - a.st.ready) || (b.c.lastAt - a.c.lastAt));
+  if (!rows.length) {
+    list.innerHTML = '<p style="font-size:13px;color:#999;padding:14px;">No customers match your search.</p>';
+    return;
+  }
+  list.innerHTML = rows.map(({ c, st }) => {
+    const ready = st.ready >= 1;
+    const pct = ready ? 100 : Math.min(100, Math.round((st.progress / conf.threshold) * 100));
+    const badge = ready ? `<span class="loyalty-ready-badge">Reward ready${st.ready > 1 ? ' ×' + st.ready : ''}</span>` : '';
+    const progLine = ready
+      ? `<span>Can claim ${escapeHtml(conf.rewardLabel)}</span><span>${st.available} ${st.unit}</span>`
+      : `<span>${st.progress} / ${conf.threshold} ${st.unit}</span><span>${conf.threshold - st.progress} to go</span>`;
+    return `
+      <div class="loyalty-row ${ready ? 'ready' : ''}">
+        <div class="loyalty-row-main">
+          <div class="loyalty-row-name">${escapeHtml(c.name || 'Unnamed buyer')}${badge}</div>
+          <div class="loyalty-row-sub">${escapeHtml(c.phone)} · ${c.purchases.length} purchase${c.purchases.length === 1 ? '' : 's'} · ${fmtKsh(c.spend)} spent · last ${relTime(new Date(c.lastAt).toISOString())}</div>
+          <div class="loyalty-row-progress">
+            <div class="loyalty-prog-meta">${progLine}</div>
+            <div class="loyalty-bar-track"><div class="loyalty-bar-fill" style="width:${pct}%"></div></div>
+          </div>
+        </div>
+        <div class="loyalty-row-actions">
+          <button class="btn-admin" onclick="loyaltyNudge('${c.phone}')">WhatsApp</button>
+          ${ready ? `<button class="btn-admin gold" onclick="loyaltyRedeem('${c.phone}')">Redeem</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function saveLoyaltyConfig() {
+  const mode = document.getElementById('loyaltyMode').value === 'spend' ? 'spend' : 'stamps';
+  const threshold = parseInt(document.getElementById('loyaltyThreshold').value, 10);
+  const ppk = parseFloat(document.getElementById('loyaltyPpk').value);
+  const reward = document.getElementById('loyaltyReward').value.trim();
+  const enabled = document.getElementById('loyaltyEnabled').checked;
+  if (!(threshold > 0)) { showToast('Reward threshold must be a positive whole number.'); return; }
+  try {
+    await apiMutateAndPublish(() => {
+      const prev = settings.loyalty || {};
+      settings.loyalty = {
+        enabled, mode, threshold,
+        pointsPerKsh: ppk > 0 ? ppk : DEFAULT_LOYALTY.pointsPerKsh,
+        rewardLabel: reward || DEFAULT_LOYALTY.rewardLabel,
+        redemptions: Array.isArray(prev.redemptions) ? prev.redemptions : [],
+      };
+    });
+    renderLoyalty();
+    showToast('Loyalty settings saved.');
+  } catch (err) { showToast('Sync failed: ' + err.message); }
+}
+
+window.loyaltyNudge = (phone) => {
+  const conf = loyaltyConf();
+  const c = customerLedger().find(x => x.phone === phone);
+  if (!c) return;
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(loyaltyMessage(c, conf, loyaltyStatus(c, conf)))}`, '_blank');
+};
+
+window.loyaltyRedeem = async (phone) => {
+  const conf = loyaltyConf();
+  const c = customerLedger().find(x => x.phone === phone);
+  if (!c) return;
+  const st = loyaltyStatus(c, conf);
+  if (st.ready < 1) { showToast('Not enough ' + st.unit + ' to redeem yet.'); return; }
+  if (!await confirmAction(`Redeem ${conf.rewardLabel} for ${c.name || phone}? This uses ${conf.threshold} ${st.unit}.`, 'Redeem')) return;
+  try {
+    await apiMutateAndPublish(() => {
+      if (!settings.loyalty || typeof settings.loyalty !== 'object') settings.loyalty = {};
+      if (!Array.isArray(settings.loyalty.redemptions)) settings.loyalty.redemptions = [];
+      settings.loyalty.redemptions.push({
+        phone, name: c.name || '', at: new Date().toISOString(),
+        mode: conf.mode, cost: conf.threshold, rewardLabel: conf.rewardLabel,
+      });
+    });
+    renderLoyalty();
+    showToast('Reward redeemed for ' + (c.name || phone) + '.');
+  } catch (err) { showToast('Sync failed: ' + err.message); }
+};
+
+document.getElementById('loyaltySaveBtn')?.addEventListener('click', saveLoyaltyConfig);
+document.getElementById('loyaltyMode')?.addEventListener('change', e => syncLoyaltyModeUI(e.target.value));
+(() => {
+  const ls = document.getElementById('loyaltySearch');
+  if (!ls) return;
+  let t;
+  ls.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { loyaltyQuery = ls.value.trim(); renderLoyalty(); }, 160); });
+})();
+document.getElementById('loyaltyMsgReadyBtn')?.addEventListener('click', () => {
+  const conf = loyaltyConf();
+  const ready = customerLedger().map(c => ({ c, st: loyaltyStatus(c, conf) })).filter(x => x.st.ready >= 1);
+  if (!ready.length) { showToast('No customers have a reward ready.'); return; }
+  showToast(`Opening ${ready.length} WhatsApp tab${ready.length === 1 ? '' : 's'}…`);
+  ready.forEach(({ c }, i) => setTimeout(() => {
+    window.open(`https://wa.me/${c.phone}?text=${encodeURIComponent(loyaltyMessage(c, conf, loyaltyStatus(c, conf)))}`, '_blank');
+  }, i * 700));
+});
+
+// ---- Post-sale thank-you (offered right after a sale with buyer details) ----
+let pendingThanks = null;
+const saleThanksModal = document.getElementById('saleThanksModal');
+
+function thankYouMessage(bag, c, conf, st) {
+  const first = (c.name || 'there').split(' ')[0];
+  let msg = `Hi ${first}! Thank you for shopping with ThriftLux 💛`;
+  if (bag?.name) msg += ` Enjoy your ${bag.name}.`;
+  if (conf.enabled) {
+    if (st.ready >= 1) {
+      msg += `\n\nGreat news, you've now earned ${conf.rewardLabel}! Claim it on your next visit.`;
+    } else if (conf.mode === 'spend') {
+      msg += `\n\nYou now have ${st.available} points on your ThriftLux loyalty card. A little more and you unlock ${conf.rewardLabel}.`;
+    } else {
+      const remaining = conf.threshold - st.progress;
+      msg += `\n\nYou now have ${st.available} stamp${st.available === 1 ? '' : 's'} on your loyalty card. ${remaining} more and ${conf.rewardLabel} is yours.`;
+    }
+  }
+  return msg + `\n— Venessa, ThriftLux`;
+}
+
+function openSaleThanks(bag) {
+  const phone = phoneKey(bag.soldTo?.phone);
+  if (phone.length < 9) return;
+  const conf = loyaltyConf();
+  const c = customerLedger().find(x => x.phone === phone) || { phone, name: bag.soldTo.name || '', purchases: [], spend: 0 };
+  const st = loyaltyStatus(c, conf);
+  pendingThanks = { bag, c, conf, st };
+  const first = escapeHtml((c.name || 'the buyer').split(' ')[0]);
+  let summary;
+  if (!conf.enabled) {
+    summary = 'Loyalty is currently off — the message will just be a thank-you.';
+  } else if (st.ready >= 1) {
+    summary = `${first} has now earned <strong>${escapeHtml(conf.rewardLabel)}</strong> (${st.available} ${st.unit}).`;
+  } else {
+    summary = `${first} now has <strong>${st.available} ${st.unit}</strong> — ${conf.threshold - st.progress} more to ${escapeHtml(conf.rewardLabel)}.`;
+  }
+  document.getElementById('saleThanksMsg').innerHTML =
+    `Send ${first} a quick thank-you and their loyalty update?<br><br>${summary}`;
+  if (saleThanksModal) saleThanksModal.style.display = 'flex';
+}
+function closeSaleThanks() { if (saleThanksModal) saleThanksModal.style.display = 'none'; pendingThanks = null; }
+
+document.getElementById('saleThanksSendBtn')?.addEventListener('click', () => {
+  if (!pendingThanks) return;
+  const { bag, c, conf, st } = pendingThanks;
+  window.open(`https://wa.me/${c.phone}?text=${encodeURIComponent(thankYouMessage(bag, c, conf, st))}`, '_blank');
+  closeSaleThanks();
+});
+document.getElementById('saleThanksDoneBtn')?.addEventListener('click', closeSaleThanks);
+saleThanksModal?.addEventListener('click', e => { if (e.target === saleThanksModal) closeSaleThanks(); });
+
 // ==================== BULK ACTIONS ====================
 window.toggleBulk = id => { if (bulkSelected.has(id)) bulkSelected.delete(id); else bulkSelected.add(id); refreshBulkBar(); renderList(); };
 function refreshBulkBar() {
@@ -1194,6 +1455,7 @@ function renderAll() {
   renderStats();
   renderInventory();
   renderBroadcast();
+  renderLoyalty();
   renderInsights();
   renderList();
 }

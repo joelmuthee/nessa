@@ -72,6 +72,7 @@
     <a href="#salesDash">Sales</a>
     <a href="#invDash">Inventory</a>
     <a href="#broadcastDash">WhatsApp Marketing</a>
+    <a href="#loyaltyDash">Loyalty <span class="admin-nav-count" id="navLoyaltyCount"></span></a>
     <a href="#insightsDash">Insights</a>
     <a href="#allItems">All bags <span class="admin-nav-count" id="navItemCount"></span></a>
     <a href="#trashSection">Trash <span class="admin-nav-count" id="navTrashCount"></span></a>
@@ -155,6 +156,57 @@
       </div>
       <p id="broadcastStatus" style="font-size:13px;color:#4a4540;margin-top:10px;"></p>
     </div>
+  </section>
+
+  <!-- ====== LOYALTY PROGRAM ====== -->
+  <section class="dash" id="loyaltyDash">
+    <h2 class="dash-title">Loyalty Program</h2>
+    <p style="font-size:13.5px;color:#4a4540;margin:-8px 0 16px;">
+      Reward repeat buyers. Customers build up automatically from the name and phone you save when marking a bag sold — nothing extra to type. Read a customer their progress at the counter, or tap WhatsApp to nudge them. None of this shows on the public site.
+    </p>
+
+    <div class="set-form" style="background:#fff;margin-bottom:18px;">
+      <div class="field" style="display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="loyaltyEnabled" style="width:auto;">
+        <label for="loyaltyEnabled" style="margin:0;">Loyalty program active</label>
+      </div>
+      <div class="loyalty-config-grid">
+        <div class="field">
+          <label>Reward earned by</label>
+          <select id="loyaltyMode">
+            <option value="stamps">Stamps — one per purchase</option>
+            <option value="spend">Points — based on amount spent</option>
+          </select>
+        </div>
+        <div class="field">
+          <label id="loyaltyThresholdLabel">Stamps needed for a reward</label>
+          <input id="loyaltyThreshold" type="number" min="1" step="1" placeholder="10">
+        </div>
+        <div class="field" id="loyaltyPpkField">
+          <label>Points per Ksh spent</label>
+          <input id="loyaltyPpk" type="number" min="0" step="0.001" placeholder="0.01">
+          <small style="color:#999;">0.01 = 1 point per Ksh 100 spent</small>
+        </div>
+        <div class="field">
+          <label>The reward</label>
+          <input id="loyaltyReward" type="text" placeholder="e.g. a free bag, 20% off">
+        </div>
+      </div>
+      <div class="admin-actions">
+        <button class="btn-admin gold" id="loyaltySaveBtn">Save loyalty settings</button>
+      </div>
+    </div>
+
+    <div class="inv-kpi-grid" id="loyaltyKpiGrid"></div>
+
+    <div class="field" style="margin-top:18px;">
+      <label>Customers <small style="font-weight:400;color:#999;">— search by name or phone</small></label>
+      <input id="loyaltySearch" type="text" placeholder="Search customers…">
+    </div>
+    <div class="admin-actions" style="margin:10px 0;">
+      <button class="btn-admin gold" id="loyaltyMsgReadyBtn">Message everyone with a reward ready →</button>
+    </div>
+    <div class="loyalty-list" id="loyaltyList"></div>
   </section>
 
   <!-- ====== INSIGHTS (per-browser, NOT 'Analytics' — locked rule in CATALOG-STANDARDS.md) ====== -->
@@ -343,6 +395,18 @@
       <button class="btn-admin primary" id="buyerSaveBtn">Save &amp; mark sold</button>
       <button class="btn-admin" id="buyerSkipBtn">Skip — just mark sold</button>
       <button class="btn-admin danger" id="buyerCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- POST-SALE THANK-YOU (offers a WhatsApp thank-you + loyalty update) -->
+<div id="saleThanksModal" class="modal" style="display:none;">
+  <div class="modal-card">
+    <h3>Sale recorded 🎉</h3>
+    <p id="saleThanksMsg" style="color:#4a4540;font-size:14px;line-height:1.5;margin-bottom:16px;"></p>
+    <div class="admin-actions" style="margin-top:18px;">
+      <button class="btn-admin gold" id="saleThanksSendBtn">Send WhatsApp thank-you →</button>
+      <button class="btn-admin" id="saleThanksDoneBtn">Done</button>
     </div>
   </div>
 </div>

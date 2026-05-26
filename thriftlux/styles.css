@@ -1555,3 +1555,43 @@ img { max-width: 100%; display: block; }
 @media (max-width: 640px) {
   .to-top { right: 16px; bottom: 16px; width: 46px; height: 46px; }
 }
+
+/* ===== LOYALTY PROGRAM (admin) ===== */
+.loyalty-config-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.loyalty-list {
+  max-height: 540px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 6px; background: var(--bg);
+  border: 1px solid rgba(201,169,97,0.25); border-radius: 10px;
+  scrollbar-width: thin; scrollbar-color: var(--gold) var(--bg);
+}
+.loyalty-list::-webkit-scrollbar { width: 9px; }
+.loyalty-list::-webkit-scrollbar-track { background: var(--bg); border-radius: 4px; }
+.loyalty-list::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
+.loyalty-list::-webkit-scrollbar-thumb:hover { background: var(--gold-deep); }
+.loyalty-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center;
+  background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 9px; padding: 11px 14px;
+}
+.loyalty-row.ready { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.loyalty-row-main { min-width: 0; }
+.loyalty-row-name { font-weight: 600; font-size: 14.5px; color: var(--ink); }
+.loyalty-row-sub { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+.loyalty-row-progress { margin-top: 7px; max-width: 340px; }
+.loyalty-prog-meta { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 3px; display: flex; justify-content: space-between; gap: 10px; }
+.loyalty-bar-track { height: 7px; background: rgba(201,169,97,0.18); border-radius: 4px; overflow: hidden; }
+.loyalty-bar-fill { height: 100%; background: var(--gold); border-radius: 4px; transition: width 0.3s ease; }
+.loyalty-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.loyalty-row-actions .btn-admin { padding: 6px 12px; font-size: 12.5px; }
+.loyalty-ready-badge {
+  display: inline-block; background: var(--gold); color: #0d0d0d;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 20px; margin-left: 8px; vertical-align: middle;
+}
+@media (max-width: 600px) {
+  .loyalty-config-grid { grid-template-columns: 1fr; }
+  .loyalty-row { grid-template-columns: 1fr; }
+  .loyalty-row-progress { max-width: none; }
+  .loyalty-row-actions { flex-wrap: wrap; }
+  .loyalty-row-actions .btn-admin { flex: 1; }
+}
