@@ -7,6 +7,7 @@ const ADMIN_TOKEN = atob('TGRCVjlCUEJzNTBrWXBzQjdNWUs1eDlUR1ZNNlh3bE5VUEMzTVRzN3
 
 let bags = [];
 let settings = {};
+let accountSuspended = false;
 let editingId = null;
 // stagedImage = { base64, ext, dataUrl } | null
 let stagedImage = null;
@@ -95,7 +96,22 @@ async function loadData() {
   const json = await res.json();
   bags = json.bags || [];
   settings = json.settings || {};
+  accountSuspended = !!json.suspended;
   backfill();
+}
+
+// Owner-facing notice when billing has suspended the store. The public site is
+// dark; this tells the owner why and how to restore (they can't unflip it).
+function renderSuspendedBanner() {
+  let b = document.getElementById('suspendedBanner');
+  if (!accountSuspended) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'suspendedBanner';
+    b.style.cssText = 'position:sticky;top:0;z-index:9000;background:#b00020;color:#fff;padding:12px 16px;text-align:center;font-size:14px;font-weight:600;line-height:1.4;';
+    document.body.prepend(b);
+  }
+  b.innerHTML = 'Your store is currently offline because payment is overdue. Please contact Essence Automations to restore it. <a href="https://wa.me/254720615606" style="color:#fff;text-decoration:underline;">Message us</a>';
 }
 
 // Backfill new optional fields onto legacy bags so renders don't crash.
@@ -1312,6 +1328,7 @@ window.toggleSold = toggleSold;
 async function init() {
   showToast('Loading bags…');
   await loadData();
+  renderSuspendedBanner();
   renderAll();
   renderTrash();
 }

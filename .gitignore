@@ -11,3 +11,7 @@ __pycache__/
 # Scratch files from the IG-import pipeline (regenerable)
 img_urls.json
 classification.csv
+
+# Billing master token (agency-only, never commit)
+.master-token
+thriftlux/worker/.master-token
