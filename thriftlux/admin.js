@@ -1019,7 +1019,22 @@ function renderLoyalty() {
   if (lockedEl) lockedEl.style.display = locked ? '' : 'none';
   if (unlockedEl) unlockedEl.style.display = locked ? 'none' : '';
   const navLock = document.getElementById('navLoyaltyCount');
-  if (locked) { if (navLock) navLock.textContent = '🔒'; return; }
+  if (locked) {
+    if (navLock) navLock.textContent = '🔒';
+    // Build the unlock-request message from this shop's own settings so the
+    // agency can tell exactly who/which site is asking (the static href is a
+    // generic fallback; this overwrites it per shop).
+    const cta = document.getElementById('loyaltyUnlockCta');
+    if (cta) {
+      const biz = (settings.businessName || 'my shop').trim();
+      const owner = (settings.ownerName || '').trim();
+      const who = owner ? `${biz} (${owner})` : biz;
+      const site = location.host + location.pathname.replace(/\/admin(\.html)?$/i, '/');
+      const text = `Hi, I'd like to unlock the Loyalty Program (Ksh 5,000 one-time) for ${who}. Site: ${site}`;
+      cta.href = `https://wa.me/254720615606?text=${encodeURIComponent(text)}`;
+    }
+    return;
+  }
 
   const conf = loyaltyConf();
   // Populate config inputs (skip any the owner is actively editing).
