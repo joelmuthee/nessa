@@ -85,19 +85,51 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     return new URL(src, location.href).href;
   }
 
-  // ----- WhatsApp link -----
-  // Standard rule: append the item's image URL on its own line at the end,
-  // separated by \n\n, so WhatsApp generates a link-preview card.
-  function whatsappLink(bag) {
-    const phone = (settings.whatsappNumber || '254705044940');
+  // ----- WhatsApp share -----
+  // Two-tier flow (per CATALOG-STANDARDS):
+  //   Tier 1 (mobile): attach the actual bag photo via the Web Share API.
+  //   Tier 2 (desktop/fallback): wa.me link with the image URL last so
+  //     WhatsApp renders the bag photo as a link-preview card.
+  // The IG reel link is intentionally NOT in the message - it would
+  // hijack WhatsApp's single preview slot and hide the bag photo.
+  function waPhone() { return (settings.whatsappNumber || '254705044940'); }
+  function waBody(bag) {
     let pricePart = '';
     if (isOnSale(bag)) pricePart = ` (on sale: ${fmtPrice(bag.salePrice)}, was ${fmtPrice(bag.price)})`;
     else if (bag.price > 0) pricePart = ` (${fmtPrice(bag.price)})`;
-    let msg = `Hi Venessa! I'd like to enquire about the *${bag.name}*${pricePart} on ThriftLux.`;
-    if (bag.reel || bag.instagramUrl) msg += `\nReel: ${bag.reel || bag.instagramUrl}`;
+    return `Hi Venessa! I'd like to enquire about the *${bag.name}*${pricePart} on ThriftLux.`;
+  }
+  function whatsappLink(bag) {
+    let msg = waBody(bag);
     const imgUrl = absImageUrl(bag.image);
-    if (imgUrl) msg += `\n\n${imgUrl}`; // absolute URL on its own line for the WA preview card
-    return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+    if (imgUrl) msg += `\n\n${imgUrl}`; // absolute URL last for the WA preview card
+    return `https://wa.me/${waPhone()}?text=${encodeURIComponent(msg)}`;
+  }
+  // Mobile + Web Share with files available? Then we can attach the real photo.
+  function canShareImage() {
+    const coarse = matchMedia('(pointer: coarse)').matches ||
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    return coarse && typeof navigator.canShare === 'function';
+  }
+  // Tier 1: fetch the photo and hand it to the OS share sheet as a real file.
+  // Returns true if the share was attempted/succeeded, false to fall through.
+  async function tryShareWithImage(bag) {
+    if (!canShareImage()) return false;
+    const imgUrl = absImageUrl(bag.image);
+    if (!imgUrl) return false;
+    try {
+      const resp = await fetch(imgUrl, { mode: 'cors' });
+      const blob = await resp.blob();
+      const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+      const safeName = (bag.name || 'bag').replace(/[^\w\s-]/g, '').trim().slice(0, 60) || 'bag';
+      const file = new File([blob], `${safeName}.${ext}`, { type: blob.type });
+      if (!navigator.canShare({ files: [file] })) return false;
+      await navigator.share({ files: [file], text: waBody(bag), title: bag.name });
+      return true;
+    } catch (e) {
+      // user cancelled or share failed → fall through to wa.me
+      return false;
+    }
   }
 
   // ----- Filter / sort / search pipeline -----
@@ -261,6 +293,18 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     const id = a.dataset.id;
     if (a.dataset.action === 'enquire') track('itemEnquiries', id);
     if (a.dataset.action === 'ig-click') track('itemIgClicks', id);
+  });
+
+  // ----- Enquire: try attaching the photo (mobile), else fall through to wa.me -----
+  gallery.addEventListener('click', async e => {
+    const a = e.target.closest('[data-action="enquire"]');
+    if (!a || a.getAttribute('aria-disabled') === 'true') return;
+    if (!canShareImage()) return; // desktop: let the wa.me href open normally
+    const bag = bags.find(b => b.id === a.dataset.id);
+    if (!bag) return;
+    e.preventDefault();
+    const shared = await tryShareWithImage(bag);
+    if (!shared) window.open(whatsappLink(bag), '_blank', 'noopener'); // share cancelled/failed
   });
 
   // ----- Like pill: tap to toggle (persists in localStorage) -----
