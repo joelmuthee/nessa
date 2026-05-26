@@ -440,6 +440,54 @@ export default {
       });
     }
 
+    // --- Share page: HTML with OpenGraph tags so WhatsApp/FB/iMessage
+    //     render a rich preview (bag photo + name). WhatsApp will NOT
+    //     preview a bare image URL - it needs an HTML page with og:image.
+    //     Humans get redirected straight to the catalogue. ---
+    const shareMatch = path.match(/^\/share\/([^/]+)$/);
+    if (request.method === "GET" && shareMatch) {
+      const id = decodeURIComponent(shareMatch[1]);
+      const catalog = "https://nessa.co.ke/thriftlux/";
+      const raw = await env.BAGS.get("data");
+      const data = raw ? JSON.parse(raw) : { bags: [] };
+      const bag = (data.bags || []).find((b) => b.id === id);
+      if (!bag) return Response.redirect(catalog, 302);
+      const esc = (s) => String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      let img = bag.image || "";
+      if (img && !/^https?:\/\//i.test(img)) img = `${url.origin}/img/${img.split("/").pop()}`;
+      const priceTxt = bag.price > 0 ? ` · Ksh ${Number(bag.price).toLocaleString("en-KE")}` : "";
+      const desc = (bag.description || `Pre-loved designer handbag on ThriftLux.`).slice(0, 200);
+      const html = `<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(bag.name)} · ThriftLux</title>
+<meta property="og:type" content="product">
+<meta property="og:title" content="${esc(bag.name)}${esc(priceTxt)}">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:image" content="${esc(img)}">
+<meta property="og:image:secure_url" content="${esc(img)}">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="600">
+<meta property="og:image:height" content="600">
+<meta property="og:url" content="${catalog}">
+<meta property="og:site_name" content="ThriftLux">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(bag.name)}${esc(priceTxt)}">
+<meta name="twitter:image" content="${esc(img)}">
+<meta http-equiv="refresh" content="0; url=${catalog}">
+</head><body style="font-family:system-ui,sans-serif;background:#0d0d0d;color:#ead7a8;text-align:center;padding:60px 20px;">
+<p>Opening ThriftLux…</p>
+<p><a href="${catalog}" style="color:#c9a961;">Tap here if you're not redirected</a></p>
+<script>location.replace(${JSON.stringify(catalog)});</script>
+</body></html>`;
+      return new Response(html, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300", ...CORS },
+      });
+    }
+
     if (path === "/api/health") {
       return json({ ok: true, time: new Date().toISOString() });
     }

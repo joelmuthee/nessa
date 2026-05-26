@@ -86,18 +86,18 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   }
 
   // ----- WhatsApp link -----
-  // wa.me link that opens WhatsApp directly. The bag image URL goes last
-  // on its own line so WhatsApp renders the bag photo as a preview card.
-  // The IG reel link is intentionally NOT included - it would hijack
-  // WhatsApp's single preview slot and hide the bag photo.
+  // wa.me link that opens WhatsApp directly. The message ends with the
+  // worker's /share/<id> page, which serves OpenGraph tags (og:image =
+  // the bag photo) so WhatsApp renders a rich preview card. A bare image
+  // URL does NOT preview - WhatsApp only previews HTML pages with OG tags.
+  const SHARE_BASE = 'https://thriftlux-api.stawisystems.workers.dev/share/';
   function whatsappLink(bag) {
     const phone = (settings.whatsappNumber || '254705044940');
     let pricePart = '';
     if (isOnSale(bag)) pricePart = ` (on sale: ${fmtPrice(bag.salePrice)}, was ${fmtPrice(bag.price)})`;
     else if (bag.price > 0) pricePart = ` (${fmtPrice(bag.price)})`;
     let msg = `Hi Venessa! I'd like to enquire about the *${bag.name}*${pricePart} on ThriftLux.`;
-    const imgUrl = absImageUrl(bag.image);
-    if (imgUrl) msg += `\n\n${imgUrl}`; // absolute URL last for the WA preview card
+    msg += `\n\n${SHARE_BASE}${encodeURIComponent(bag.id)}`; // OG share page → WA preview card
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   }
 
