@@ -906,14 +906,20 @@ function renderBroadcastSelected() {
 function buildBroadcastMessage(firstName) {
   const subject = document.getElementById('broadcastSubject').value.trim();
   const items = Array.from(broadcastItemIds).map(id => bags.find(b => b.id === id)).filter(Boolean);
+  // Per-item links use the worker's /share/<id> page (not the IG post) so the
+  // first one renders a WhatsApp preview card AND traffic lands on the shop, not
+  // Instagram. The shop browse link goes last: nessa.co.ke is a CF zone that
+  // 403s the WA crawler, so it can't be the first/previewed link anyway.
+  const SHARE_BASE = 'https://thriftlux-api.stawisystems.workers.dev/share/';
+  const SHOP_URL = 'https://nessa.co.ke/thriftlux';
   let msg = `Hi ${firstName}! `;
   if (subject) msg += subject + '\n\n';
   if (items.length) {
     msg += 'New drops you might love:\n';
-    items.forEach(b => { msg += `\n• ${b.name} — ${fmtKsh(b.price)}${b.instagramUrl ? '\n  ' + b.instagramUrl : ''}`; });
+    items.forEach(b => { msg += `\n• ${b.name} — ${fmtKsh(b.price)}\n  ${SHARE_BASE}${encodeURIComponent(b.id)}`; });
     msg += '\n\n';
   }
-  msg += 'Reply here if anything catches your eye 💛\n— Venessa, ThriftLux';
+  msg += `Browse the full shop: ${SHOP_URL}\n\nReply here if anything catches your eye 💛\n— Venessa, ThriftLux`;
   return msg;
 }
 function updateBroadcastPreview() {
