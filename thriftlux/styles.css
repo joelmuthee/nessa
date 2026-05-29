@@ -956,6 +956,15 @@ img { max-width: 100%; display: block; }
 .broadcast-recipient-meta { grid-column: 2 / -1; font-size: 11px; color: var(--ink-faint); }
 @media (max-width: 600px) { .broadcast-recipients { grid-template-columns: 1fr; } }
 
+/* Mobile one-at-a-time send stepper */
+.broadcast-stepper { background: var(--bg); border: 1px solid var(--gold); border-radius: 10px; padding: 14px 16px; }
+.bc-step-head { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+.bc-step-name { font-size: 16px; font-weight: 600; color: var(--ink); margin: 4px 0 12px; }
+.bc-step-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bc-step-actions .btn-admin { text-decoration: none; }
+.bc-step-hint { font-size: 12px; color: var(--ink-faint); margin-top: 10px; line-height: 1.45; }
+.bc-step-done { font-size: 14px; font-weight: 600; color: #1a7a40; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
 /* Bulk action sticky bar + admin card overrides */
 .bulk-bar { position: sticky; top: 64px; z-index: 40; display: flex; align-items: center; gap: 10px; background: #0d0d0d; color: var(--gold-light); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; box-shadow: var(--shadow); }
 .bulk-bar strong { font-size: 18px; font-family: var(--serif); color: var(--gold); margin-right: 4px; }

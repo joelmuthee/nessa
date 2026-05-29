@@ -278,19 +278,31 @@ function relTime(iso) {
   if (d < 14) return d + 'd ago';
   return new Date(iso).toLocaleDateString('en-KE');
 }
-function readFileAsStaged(file) {
+// Re-encode any uploaded image to JPEG, max 1280px, quality 0.82, alpha
+// flattened onto white. WhatsApp's link-preview crawler skips images that are
+// too heavy (multi-MB PNGs) or webp, so the /share/<id> OG card silently breaks
+// unless every staged image is a lean JPEG. All staged images become ext 'jpg'.
+function blobToStagedJpeg(blob, maxDim = 1280, quality = 0.82) {
   return new Promise((resolve, reject) => {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const r = new FileReader();
-    r.onload = () => {
-      const dataUrl = r.result;
-      const base64 = dataUrl.split(',')[1];
-      resolve({ base64, ext, dataUrl });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      resolve({ base64: dataUrl.split(',')[1], ext: 'jpg', dataUrl });
     };
-    r.onerror = reject;
-    r.readAsDataURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
+    img.src = url;
   });
 }
+function readFileAsStaged(file) { return blobToStagedJpeg(file); }
 
 // ==================== ADD/EDIT FORM ====================
 const imageInput = document.getElementById('imageInput');
@@ -387,12 +399,7 @@ document.getElementById('igQuickBtn').addEventListener('click', async () => {
       const imgRes = await fetch(proxied);
       if (!imgRes.ok) throw new Error(`ig-proxy ${imgRes.status}`);
       const blob = await imgRes.blob();
-      const ext = (blob.type.split('/')[1] || 'jpg').toLowerCase();
-      const r2 = new FileReader();
-      stagedImage = await new Promise(resolve => {
-        r2.onload = () => resolve({ base64: r2.result.split(',')[1], ext, dataUrl: r2.result });
-        r2.readAsDataURL(blob);
-      });
+      stagedImage = await blobToStagedJpeg(blob);
       imagePreview.innerHTML = `<img src="${stagedImage.dataUrl}" style="max-width:200px;border-radius:8px;">`;
     }
     if (data.caption) {
@@ -916,7 +923,8 @@ document.getElementById('broadcastSubject').addEventListener('input', updateBroa
 document.getElementById('broadcastCopyBtn').addEventListener('click', () => {
   navigator.clipboard.writeText(buildBroadcastMessage('there')).then(() => showToast('Copied. Paste into a WA broadcast list.'));
 });
-document.getElementById('broadcastStartBtn').addEventListener('click', () => {
+// Build the deselected-aware, deduped recipient list from sales history.
+function broadcastRecipients() {
   const buyers = [];
   bags.forEach(b => {
     const s = b.soldTo;
@@ -925,16 +933,83 @@ document.getElementById('broadcastStartBtn').addEventListener('click', () => {
     }
   });
   const seen = new Set();
-  const dedup = buyers.filter(b => seen.has(b.phone) ? false : (seen.add(b.phone), true));
-  if (!dedup.length) { document.getElementById('broadcastStatus').textContent = 'No recipients selected.'; return; }
-  document.getElementById('broadcastStatus').textContent = `Opening ${dedup.length} WhatsApp tabs (700ms apart)…`;
-  dedup.forEach((b, i) => {
-    setTimeout(() => {
-      const url = `https://wa.me/${b.phone}?text=${encodeURIComponent(buildBroadcastMessage(b.name))}`;
-      window.open(url, '_blank');
-    }, i * 700);
-  });
+  return buyers.filter(b => seen.has(b.phone) ? false : (seen.add(b.phone), true));
+}
+
+// On phones the multi-window approach fails: only the first wa.me link fires before
+// the browser is backgrounded by the WhatsApp app, and you can only be in one chat
+// at a time. So mobile gets a one-at-a-time stepper; desktop keeps the multi-tab open.
+const BC_PROG_KEY = 'thriftlux_bcprog';
+let bcQueue = [];   // [{ phone, name }]
+let bcIdx = 0;
+function saveBcProgress() { try { localStorage.setItem(BC_PROG_KEY, JSON.stringify({ q: bcQueue, i: bcIdx })); } catch (_) {} }
+function clearBcProgress() { try { localStorage.removeItem(BC_PROG_KEY); } catch (_) {} bcQueue = []; bcIdx = 0; }
+
+function renderBroadcastStepper() {
+  const el = document.getElementById('broadcastStepper');
+  if (!el) return;
+  if (!bcQueue.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  if (bcIdx >= bcQueue.length) {
+    el.style.display = 'block';
+    el.innerHTML = `<div class="bc-step-done">✓ Done — stepped through all ${bcQueue.length} buyer${bcQueue.length === 1 ? '' : 's'}. <button class="btn-admin" id="bcStepClose" type="button">Close</button></div>`;
+    document.getElementById('bcStepClose').addEventListener('click', () => { clearBcProgress(); renderBroadcastStepper(); });
+    return;
+  }
+  const r = bcQueue[bcIdx];
+  const href = `https://wa.me/${r.phone}?text=${encodeURIComponent(buildBroadcastMessage(r.name))}`;
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="bc-step-head">Sending ${bcIdx + 1} of ${bcQueue.length}</div>
+    <div class="bc-step-name">${escapeHtml(r.name || 'Unknown buyer')} · +${escapeHtml(r.phone)}</div>
+    <div class="bc-step-actions">
+      <a class="btn-admin gold" id="bcStepOpen" href="${href}" target="_blank" rel="noopener">Open WhatsApp &amp; send →</a>
+      <button class="btn-admin" id="bcStepNext" type="button">Sent ✓ · Next ▸</button>
+      <button class="btn-admin" id="bcStepSkip" type="button">Skip</button>
+      <button class="btn-admin danger" id="bcStepStop" type="button">Stop</button>
+    </div>
+    <div class="bc-step-hint">Tap <strong>Open WhatsApp</strong>, press send inside WhatsApp, come back here and tap <strong>Sent ✓ · Next</strong>. Your place is saved if you get interrupted.</div>`;
+  document.getElementById('bcStepNext').addEventListener('click', () => { bcIdx++; saveBcProgress(); renderBroadcastStepper(); });
+  document.getElementById('bcStepSkip').addEventListener('click', () => { bcIdx++; saveBcProgress(); renderBroadcastStepper(); });
+  document.getElementById('bcStepStop').addEventListener('click', () => { clearBcProgress(); renderBroadcastStepper(); showToast('Sending stopped.'); });
+}
+
+function restoreBcProgress() {
+  try {
+    const p = JSON.parse(localStorage.getItem(BC_PROG_KEY) || 'null');
+    if (p && Array.isArray(p.q) && p.q.length && p.i < p.q.length) { bcQueue = p.q; bcIdx = p.i; renderBroadcastStepper(); }
+    else clearBcProgress();
+  } catch (_) {}
+}
+
+const BC_IS_MOBILE = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+document.getElementById('broadcastStartBtn').addEventListener('click', async () => {
+  const recipients = broadcastRecipients();
+  if (!recipients.length) { document.getElementById('broadcastStatus').textContent = 'No recipients selected.'; return; }
+  if (BC_IS_MOBILE) {
+    if (!await confirmAction(`Send to ${recipients.length} buyer${recipients.length === 1 ? '' : 's'}, one at a time. For each: tap Open WhatsApp, send, come back, tap Next. OK?`, 'Start')) return;
+    bcQueue = recipients.map(r => ({ phone: r.phone, name: r.name }));
+    bcIdx = 0;
+    saveBcProgress();
+    renderBroadcastStepper();
+    document.getElementById('broadcastStepper').scrollIntoView({ behavior: 'auto', block: 'center' });
+    return;
+  }
+  if (!await confirmAction(`Open ${recipients.length} WhatsApp window${recipients.length === 1 ? '' : 's'}, one per buyer. Send each one manually. OK?`)) return;
+  let i = 0;
+  function next() {
+    if (i >= recipients.length) {
+      document.getElementById('broadcastStatus').textContent = `✓ Opened ${recipients.length} WhatsApp window${recipients.length === 1 ? '' : 's'}.`;
+      return;
+    }
+    const r = recipients[i++];
+    window.open(`https://wa.me/${r.phone}?text=${encodeURIComponent(buildBroadcastMessage(r.name))}`, '_blank');
+    document.getElementById('broadcastStatus').textContent = `Opening ${i} of ${recipients.length}…`;
+    setTimeout(next, 700);
+  }
+  next();
 });
+restoreBcProgress();
 
 
 // ==================== LOYALTY PROGRAM ====================
