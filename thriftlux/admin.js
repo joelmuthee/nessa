@@ -278,6 +278,19 @@ function relTime(iso) {
   if (d < 14) return d + 'd ago';
   return new Date(iso).toLocaleDateString('en-KE');
 }
+// Best-effort "added to the website" timestamp: explicit createdAt, else the IG
+// post date (takenAt; epoch-seconds or ISO), else the millis baked into a manual id.
+// Returns an ISO string, or null if nothing usable.
+function itemAddedAt(bag) {
+  if (bag.createdAt) return bag.createdAt;
+  if (bag.takenAt != null) {
+    const t = bag.takenAt;
+    if (typeof t === 'number') return new Date(t < 1e12 ? t * 1000 : t).toISOString();
+    return t;
+  }
+  const m = String(bag.id || '').match(/_(\d{10,})/);
+  return m ? new Date(parseInt(m[1], 10)).toISOString() : null;
+}
 // Re-encode any uploaded image to JPEG, max 1280px, quality 0.82, alpha
 // flattened onto white. WhatsApp's link-preview crawler skips images that are
 // too heavy (multi-MB PNGs) or webp, so the /share/<id> OG card silently breaks
@@ -1455,6 +1468,7 @@ function renderList() {
   }
 
   list.innerHTML = filtered.map(b => {
+    const addedIso = itemAddedAt(b);
     const buyer = b.soldTo?.name
       ? `<div class="admin-card-buyer">Sold to ${escapeHtml(b.soldTo.name)}${b.soldTo.phone ? ' · ' + escapeHtml(b.soldTo.phone) : ''}</div>`
       : '';
@@ -1470,6 +1484,7 @@ function renderList() {
             : fmtKsh(b.price)
         } ${b.sold ? '· <span style="color:#b00020">SOLD</span>' : ''}</div>
         <div class="admin-card-stock">${escapeHtml(b.category || 'Uncategorised')}</div>
+        ${addedIso ? `<div class="admin-card-added" title="Added ${new Date(addedIso).toLocaleString('en-KE')}">Added ${relTime(addedIso)}</div>` : ''}
         ${buyer}
         <div class="admin-card-actions">
           <button onclick="editBag('${b.id}')">Edit</button>
