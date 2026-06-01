@@ -446,6 +446,8 @@ export default {
           return b;
         });
       }
+      // The manually-added clients list is owner-only CRM PII — never public.
+      if (!admin && data.clients) delete data.clients;
       return json(data, 200, admin
         ? { "Cache-Control": "no-store" }
         : { "Cache-Control": "public, max-age=10" });
@@ -621,7 +623,9 @@ export default {
       if (body.bags.length === 0 && !body.force) {
         return json({ error: "refusing to publish empty bags array — pass force:true to override" }, 400);
       }
-      await env.BAGS.put("data", JSON.stringify({ bags: body.bags, settings: body.settings || {} }));
+      const payload = { bags: body.bags, settings: body.settings || {} };
+      if (Array.isArray(body.clients)) payload.clients = body.clients;
+      await env.BAGS.put("data", JSON.stringify(payload));
       return json({ ok: true, count: body.bags.length });
     }
 

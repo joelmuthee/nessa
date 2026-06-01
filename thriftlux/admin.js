@@ -7,6 +7,7 @@ const ADMIN_TOKEN = atob('TGRCVjlCUEJzNTBrWXBzQjdNWUs1eDlUR1ZNNlh3bE5VUEMzTVRzN3
 
 let bags = [];
 let settings = {};
+let clients = []; // manually-added clients (server-synced); sale buyers derived from soldTo
 let accountSuspended = false;
 let loyaltyUnlocked = false;
 let editingId = null;
@@ -67,7 +68,7 @@ async function publishBags() {
   const res = await fetch(`${API_BASE}/api/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify({ bags, settings }),
+    body: JSON.stringify({ bags, settings, clients }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -87,6 +88,7 @@ async function apiMutateAndPublish(mutate) {
   const json = await res.json();
   bags = Array.isArray(json.bags) ? json.bags : [];
   settings = json.settings || {};
+  clients = Array.isArray(json.clients) ? json.clients : [];
   loyaltyUnlocked = !!json.loyaltyUnlocked;
   backfill();
   await mutate();
@@ -98,6 +100,7 @@ async function loadData() {
   const json = await res.json();
   bags = json.bags || [];
   settings = json.settings || {};
+  clients = Array.isArray(json.clients) ? json.clients : [];
   accountSuspended = !!json.suspended;
   loyaltyUnlocked = !!json.loyaltyUnlocked;
   backfill();
@@ -1066,6 +1069,18 @@ function customerLedger() {
     const at = s.soldAt ? new Date(s.soldAt).getTime() : 0;
     if (at >= c.lastAt) { c.lastAt = at; if (s.name) c.name = s.name; }
   }
+  // Overlay manually-added clients (may have zero purchases yet).
+  for (const mc of (clients || [])) {
+    if (!mc || !mc.phone) continue;
+    const phone = phoneKey(mc.phone);
+    if (phone.length < 9) continue;
+    let c = map.get(phone);
+    if (!c) { c = { phone, name: '', purchases: [], spend: 0, lastAt: 0 }; map.set(phone, c); }
+    c.manualId = mc.id;
+    if (mc.note) c.note = mc.note;
+    if (!c.name && mc.name) c.name = mc.name;
+    if (mc.createdAt) c.addedAt = mc.createdAt;
+  }
   return [...map.values()];
 }
 
@@ -1109,15 +1124,23 @@ function renderClients() {
     const items = c.purchases.slice()
       .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0))
       .map(p => `<span class="client-item">${escapeHtml(p.bagName)} · ${fmtKsh(p.price)}</span>`).join('');
+    const has = c.purchases.length;
+    const when = has ? `last ${relTime(new Date(c.lastAt).toISOString())}`
+                     : (c.addedAt ? `added ${relTime(c.addedAt)}` : 'no purchases yet');
+    const manualTag = c.manualId ? '<span class="client-tag">Added manually</span>' : '';
+    const noteLine = c.note ? `<div class="client-note">${escapeHtml(c.note)}</div>` : '';
+    const removeBtn = c.manualId ? `<button class="btn-admin danger" onclick="removeClient('${c.manualId}')">Remove</button>` : '';
     return `
       <div class="client-row">
         <div class="client-row-main">
-          <div class="client-row-name">${escapeHtml(c.name || 'Unnamed buyer')}</div>
-          <div class="client-row-sub">${escapeHtml(c.phone)} · ${c.purchases.length} purchase${c.purchases.length === 1 ? '' : 's'} · ${fmtKsh(c.spend)} spent · last ${relTime(new Date(c.lastAt).toISOString())}</div>
+          <div class="client-row-name">${escapeHtml(c.name || 'Unnamed buyer')}${manualTag}</div>
+          <div class="client-row-sub">${escapeHtml(c.phone)} · ${has} purchase${has === 1 ? '' : 's'} · ${fmtKsh(c.spend)} spent · ${when}</div>
+          ${noteLine}
           <div class="client-items">${items}</div>
         </div>
         <div class="client-row-actions">
           <button class="btn-admin gold" onclick="clientMessage('${c.phone}')">WhatsApp</button>
+          ${removeBtn}
         </div>
       </div>`;
   }).join('');
@@ -1130,17 +1153,105 @@ window.clientMessage = phone => {
 };
 document.getElementById('clientsSearch')?.addEventListener('input', e => { clientsQuery = e.target.value.trim(); renderClients(); });
 document.getElementById('clientsSort')?.addEventListener('change', e => { clientsSort = e.target.value; renderClients(); });
-// "NEW" badge on the Clients nav link — dismisses for good once the owner opens the tab.
-(function () {
-  const badge = document.getElementById('clientsNavNew');
-  if (!badge) return;
-  const KEY = 'clients_tab_seen';
-  try { if (localStorage.getItem(KEY)) { badge.style.display = 'none'; return; } } catch (_) {}
-  document.getElementById('clientsNavLink')?.addEventListener('click', () => {
-    badge.style.display = 'none';
-    try { localStorage.setItem(KEY, '1'); } catch (_) {}
-  });
-})();
+// "NEW" badge on the Clients nav link — kept permanently visible (no auto-dismiss).
+
+// ----- Manual add / remove client (server-synced via clients[]) -----
+// "Item bought" autocomplete: type → tappable AVAILABLE bags → pick to mark it
+// sold to this client (thrift = one-of-one, so this is the mark-sold path).
+let acItemId = '';
+function acRenderResults(q) {
+  const box = document.getElementById('addClientItemResults');
+  const query = (q || '').toLowerCase();
+  if (!query) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const matches = bags.filter(b => !b.sold && (b.name || '').toLowerCase().includes(query)).slice(0, 12);
+  box.innerHTML = matches.length
+    ? matches.map(b => `<button type="button" class="client-item-opt" data-id="${b.id}">${escapeHtml(b.name)}<span>${fmtKsh(b.price)}</span></button>`).join('')
+    : '<div class="client-item-empty">No available items match.</div>';
+  box.style.display = '';
+}
+function acSelectItem(id) {
+  const bag = bags.find(b => b.id === id);
+  if (!bag) return;
+  acItemId = id;
+  document.getElementById('addClientItemSearch').value = bag.name;
+  document.getElementById('addClientItemResults').style.display = 'none';
+  document.getElementById('addClientPrice').value = (bag.salePrice > 0 && bag.salePrice < bag.price) ? bag.salePrice : bag.price;
+  document.getElementById('addClientChosen').innerHTML = `Marking <strong>${escapeHtml(bag.name)}</strong> sold to this client · <button type="button" id="addClientClearItem">clear</button>`;
+  document.getElementById('addClientChosen').style.display = '';
+  document.getElementById('addClientSaleFields').style.display = '';
+}
+function acClearItem() {
+  acItemId = '';
+  document.getElementById('addClientItemSearch').value = '';
+  document.getElementById('addClientItemResults').style.display = 'none';
+  document.getElementById('addClientChosen').style.display = 'none';
+  document.getElementById('addClientSaleFields').style.display = 'none';
+}
+function openAddClient() {
+  document.getElementById('addClientName').value = '';
+  document.getElementById('addClientPhone').value = '';
+  document.getElementById('addClientNote').value = '';
+  acClearItem();
+  document.getElementById('addClientModal').style.display = 'flex';
+  document.getElementById('addClientName').focus();
+}
+function closeAddClient() { document.getElementById('addClientModal').style.display = 'none'; }
+document.getElementById('clientsAddBtn')?.addEventListener('click', openAddClient);
+document.getElementById('addClientCancelBtn')?.addEventListener('click', closeAddClient);
+document.getElementById('addClientModal')?.addEventListener('click', e => { if (e.target.id === 'addClientModal') closeAddClient(); });
+document.getElementById('addClientItemSearch')?.addEventListener('input', e => {
+  acItemId = '';
+  document.getElementById('addClientChosen').style.display = 'none';
+  document.getElementById('addClientSaleFields').style.display = 'none';
+  acRenderResults(e.target.value.trim());
+});
+document.getElementById('addClientItemResults')?.addEventListener('click', e => {
+  const opt = e.target.closest('.client-item-opt');
+  if (opt) acSelectItem(opt.dataset.id);
+});
+document.getElementById('addClientChosen')?.addEventListener('click', e => {
+  if (e.target.id === 'addClientClearItem') acClearItem();
+});
+document.getElementById('addClientSaveBtn')?.addEventListener('click', async () => {
+  const name = document.getElementById('addClientName').value.trim();
+  const phone = document.getElementById('addClientPhone').value.trim().replace(/[^0-9+]/g, '');
+  const note = document.getElementById('addClientNote').value.trim();
+  if (!name) { showToast('Enter a name.'); return; }
+  if (phone.replace(/[^0-9]/g, '').length < 9) { showToast('Enter a valid phone number.'); return; }
+  const itemId = acItemId;
+  const paid = itemId ? (parseInt(document.getElementById('addClientPrice').value, 10) || 0) : 0;
+  const btn = document.getElementById('addClientSaveBtn');
+  btn.disabled = true;
+  try {
+    await apiMutateAndPublish(() => {
+      if (!Array.isArray(clients)) clients = [];
+      const norm = phoneKey(phone);
+      const existing = clients.find(c => phoneKey(c.phone) === norm);
+      if (existing) { existing.name = name; existing.note = note; }
+      else clients.push({ id: 'c_' + Date.now(), name, phone, note, createdAt: new Date().toISOString() });
+      if (itemId) {
+        const bag = bags.find(b => b.id === itemId);
+        if (!bag) throw new Error('Item no longer exists — refresh admin');
+        if (bag.sold) throw new Error('That item is already sold');
+        bag.sold = true;
+        bag.soldTo = { name, phone, notes: note, soldAt: new Date().toISOString(), salePrice: paid || bag.price };
+        delete bag.salePrice;
+      }
+    });
+    closeAddClient();
+    renderAll();
+    showToast(itemId ? 'Client saved + bag marked sold.' : 'Client saved.');
+  } catch (e) { showToast('Save failed: ' + e.message); }
+  finally { btn.disabled = false; }
+});
+window.removeClient = async (id) => {
+  if (!await confirmAction('Remove this client from your list? Their past sales (if any) stay in your records.', 'Remove')) return;
+  try {
+    await apiMutateAndPublish(() => { clients = (clients || []).filter(c => c.id !== id); });
+    renderClients();
+    showToast('Client removed.');
+  } catch (e) { showToast('Remove failed: ' + e.message); }
+};
 
 function loyaltyStatus(c, conf) {
   const earned = conf.mode === 'spend' ? Math.floor(c.spend * conf.pointsPerKsh) : c.purchases.length;
