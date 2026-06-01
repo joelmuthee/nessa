@@ -1649,6 +1649,12 @@ img { max-width: 100%; display: block; }
 }
 
 /* ===== CLIENTS (free CRM roster) ===== */
+.admin-nav-new {
+  display: inline-block; margin-left: 5px;
+  font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #fff; background: var(--gold, #c9a227);
+  padding: 1px 5px; border-radius: 4px; vertical-align: middle; line-height: 1.5;
+}
 .clients-controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 14px; }
 .clients-controls #clientsSearch {
   flex: 1; min-width: 180px;
