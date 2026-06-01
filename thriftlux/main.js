@@ -77,6 +77,19 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       data[metric][key] = (data[metric][key] || 0) + 1;
       localStorage.setItem(INSIGHTS_KEY, JSON.stringify(data));
     } catch {}
+    // Also report to the worker so the admin sees site-wide totals across all
+    // visitors and devices, not just this browser. Fire-and-forget; never
+    // blocks or errors the UI. text/plain keeps sendBeacon CORS-preflight-free
+    // (the worker parses the body as JSON regardless of content-type).
+    try {
+      const payload = JSON.stringify({ metric, key });
+      const blob = new Blob([payload], { type: 'text/plain' });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(`${API_BASE}/api/track`, blob);
+      } else {
+        fetch(`${API_BASE}/api/track`, { method: 'POST', body: payload, keepalive: true }).catch(() => {});
+      }
+    } catch {}
   }
 
   // Resolve relative image paths to absolute URLs. WhatsApp will only

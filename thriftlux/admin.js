@@ -1519,8 +1519,17 @@ const INSIGHTS_KEY = 'thriftlux_analytics';
 function getInsights() {
   try { return JSON.parse(localStorage.getItem(INSIGHTS_KEY) || '{}'); } catch { return {}; }
 }
-function renderInsights() {
-  const a = getInsights();
+// Pull the shop-wide aggregate from the worker. Falls back to this device's
+// localStorage only if the worker is unreachable (offline / down).
+async function fetchInsights() {
+  try {
+    const res = await fetch(`${API_BASE}/api/insights`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } });
+    if (res.ok) return await res.json();
+  } catch {}
+  return null;
+}
+async function renderInsights() {
+  const a = (await fetchInsights()) || getInsights();
   const views = a.itemViews || {};
   const enqs = a.itemEnquiries || {};
   const igClicks = a.itemIgClicks || {};
@@ -1548,7 +1557,7 @@ function renderInsights() {
             <img src="${b.image}" alt="">
             <div style="flex:1;min-width:0;"><div class="recent-name">${escapeHtml(b.name)}</div><div class="recent-meta">${n} ${n === 1 ? 'time' : 'times'}</div></div>
           </div>`).join('')
-      : '<p class="insights-empty">No data yet on this device.</p>';
+      : '<p class="insights-empty">No data yet.</p>';
   }
   document.getElementById('insightsTopViews').innerHTML = topList(views);
   document.getElementById('insightsTopEnquiries').innerHTML = topList(enqs);
@@ -1561,16 +1570,19 @@ function renderInsights() {
       `<span class="search-gap-pill">${escapeHtml(q)}<span class="count">${n}</span></span>`
     ).join('');
   } else {
-    pillsEl.innerHTML = '<p class="insights-empty" style="margin:0;">No empty searches recorded on this device. Once visitors search for something the catalogue doesn\'t have, it shows up here as a sourcing hint.</p>';
+    pillsEl.innerHTML = '<p class="insights-empty" style="margin:0;">No empty searches yet. Once visitors search for something the catalogue doesn\'t have, it shows up here as a sourcing hint.</p>';
   }
 }
 const insightsResetBtn = document.getElementById('insightsResetBtn');
 if (insightsResetBtn) {
   insightsResetBtn.addEventListener('click', async () => {
-    if (!await confirmAction('Clear insights on this device only? Other devices keep their data.')) return;
+    if (!await confirmAction('Reset Insights for the whole shop? This clears the site-wide totals from every device and cannot be undone.', 'Reset')) return;
+    try {
+      await fetch(`${API_BASE}/api/insights-reset`, { method: 'POST', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } });
+    } catch {}
     localStorage.removeItem(INSIGHTS_KEY);
-    renderInsights();
-    showToast('Insights reset on this device.');
+    await renderInsights();
+    showToast('Insights reset for the whole shop.');
   });
 }
 

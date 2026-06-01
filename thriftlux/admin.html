@@ -236,9 +236,9 @@
 
   <!-- ====== INSIGHTS (per-browser, NOT 'Analytics' — locked rule in CATALOG-STANDARDS.md) ====== -->
   <section class="dash" id="insightsDash">
-    <h2 class="dash-title">Insights <span class="insights-badge">This device only</span></h2>
+    <h2 class="dash-title">Insights <span class="insights-badge">Whole shop · all visitors</span></h2>
     <p class="insights-disclosure">
-      What's being viewed and tapped on the public store, tracked in this browser's <code>localStorage</code>. The numbers are honest but per-device — they reflect activity captured on whichever browsers visitors used (yours included). For visitor-wide stats, plug in Cloudflare Web Analytics (free, one-line beacon).
+      What's being viewed and tapped on the public store, summed live on the server across every visitor on every device. Updates a few seconds after a shopper acts. For raw pageview and unique-visitor totals you can also add Cloudflare Web Analytics (free, one-line beacon), but the per-item numbers below already cover what to source and what's converting.
     </p>
     <div class="inv-kpi-grid" id="insightsKpiGrid"></div>
     <div class="dash-grid" style="margin-top:18px;">
@@ -258,7 +258,7 @@
       <div class="search-gaps-pills" id="searchGapsPills"></div>
     </div>
     <div class="insights-actions">
-      <button class="btn-admin danger" id="insightsResetBtn">Reset insights on this device</button>
+      <button class="btn-admin danger" id="insightsResetBtn">Reset insights</button>
     </div>
   </section>
 
