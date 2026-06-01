@@ -82,7 +82,7 @@ async function publishBags() {
 // Mutators close over module-level `bags` and MUST look up bags by id inside
 // the callback — any reference captured before the fetch is stale.
 async function apiMutateAndPublish(mutate) {
-  const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`);
+  const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } });
   if (!res.ok) throw new Error(`Failed to load fresh data: ${res.status}`);
   const json = await res.json();
   bags = Array.isArray(json.bags) ? json.bags : [];
@@ -94,7 +94,7 @@ async function apiMutateAndPublish(mutate) {
 }
 
 async function loadData() {
-  const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`);
+  const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } });
   const json = await res.json();
   bags = json.bags || [];
   settings = json.settings || {};
@@ -1069,6 +1069,68 @@ function customerLedger() {
   return [...map.values()];
 }
 
+// ====== CLIENTS (free CRM roster) ======
+// Ungated view of who has bought, so the owner can see and re-contact buyers.
+// Reuses customerLedger() (deduped by phone). Loyalty adds points/rewards on
+// top of the same ledger and stays the paid upsell.
+let clientsQuery = '';
+let clientsSort = 'recent';
+function renderClients() {
+  const listEl = document.getElementById('clientsList');
+  if (!listEl) return;
+  const ledger = customerLedger();
+  const totalSpend = ledger.reduce((s, c) => s + c.spend, 0);
+  const repeat = ledger.filter(c => c.purchases.length >= 2).length;
+  const avg = ledger.length ? Math.round(totalSpend / ledger.length) : 0;
+
+  const nav = document.getElementById('navClientsCount'); if (nav) nav.textContent = ledger.length || '';
+
+  const kpi = document.getElementById('clientsKpiGrid');
+  if (kpi) kpi.innerHTML = `
+    <div class="inv-kpi"><div class="inv-kpi-label">Clients</div><div class="inv-kpi-val">${ledger.length}</div><div class="inv-kpi-sub">${repeat} repeat buyer${repeat === 1 ? '' : 's'}</div></div>
+    <div class="inv-kpi success"><div class="inv-kpi-label">Total spent</div><div class="inv-kpi-val">${fmtKsh(totalSpend)}</div><div class="inv-kpi-sub">across all clients</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Avg per client</div><div class="inv-kpi-val">${fmtKsh(avg)}</div><div class="inv-kpi-sub">lifetime value</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Repeat rate</div><div class="inv-kpi-val">${ledger.length ? Math.round(repeat / ledger.length * 100) : 0}%</div><div class="inv-kpi-sub">bought 2+ times</div></div>
+  `;
+
+  if (!ledger.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:#999;padding:14px;">No clients yet. When you mark a bag sold and save the buyer\'s name and phone, they show up here so you can message them again.</p>';
+    return;
+  }
+  const q = clientsQuery.toLowerCase();
+  const rows = ledger
+    .filter(c => !q || (c.name || '').toLowerCase().includes(q) || c.phone.includes(q))
+    .sort((a, b) =>
+      clientsSort === 'spend' ? b.spend - a.spend :
+      clientsSort === 'purchases' ? b.purchases.length - a.purchases.length :
+      b.lastAt - a.lastAt);
+  if (!rows.length) { listEl.innerHTML = '<p style="font-size:13px;color:#999;padding:14px;">No clients match your search.</p>'; return; }
+  listEl.innerHTML = rows.map(c => {
+    const items = c.purchases.slice()
+      .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0))
+      .map(p => `<span class="client-item">${escapeHtml(p.bagName)} · ${fmtKsh(p.price)}</span>`).join('');
+    return `
+      <div class="client-row">
+        <div class="client-row-main">
+          <div class="client-row-name">${escapeHtml(c.name || 'Unnamed buyer')}</div>
+          <div class="client-row-sub">${escapeHtml(c.phone)} · ${c.purchases.length} purchase${c.purchases.length === 1 ? '' : 's'} · ${fmtKsh(c.spend)} spent · last ${relTime(new Date(c.lastAt).toISOString())}</div>
+          <div class="client-items">${items}</div>
+        </div>
+        <div class="client-row-actions">
+          <button class="btn-admin gold" onclick="clientMessage('${c.phone}')">WhatsApp</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+window.clientMessage = phone => {
+  const c = customerLedger().find(x => x.phone === phone);
+  const first = (c && c.name ? c.name : 'there').split(' ')[0];
+  const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Want me to send you what just landed?\n— Venessa, ThriftLux`;
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+};
+document.getElementById('clientsSearch')?.addEventListener('input', e => { clientsQuery = e.target.value.trim(); renderClients(); });
+document.getElementById('clientsSort')?.addEventListener('change', e => { clientsSort = e.target.value; renderClients(); });
+
 function loyaltyStatus(c, conf) {
   const earned = conf.mode === 'spend' ? Math.floor(c.spend * conf.pointsPerKsh) : c.purchases.length;
   const redeemed = conf.redemptions
@@ -1590,6 +1652,7 @@ function renderAll() {
   renderStats();
   renderInventory();
   renderBroadcast();
+  renderClients();
   renderLoyalty();
   renderInsights();
   renderList();

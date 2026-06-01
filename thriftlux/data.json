@@ -180,11 +180,7 @@
       "sold": true,
       "image": "https://thriftlux-api.stawisystems.workers.dev/img/bag_1779386995989.jpg",
       "images": [],
-      "createdAt": "2026-05-21T17:43:51.938Z",
-      "soldTo": {
-        "soldAt": "2026-05-21T18:06:03.092Z",
-        "salePrice": 1650
-      }
+      "createdAt": "2026-05-21T17:43:51.938Z"
     },
     {
       "id": "bag_1779385376895",
@@ -210,11 +206,7 @@
       "sold": true,
       "image": "https://thriftlux-api.stawisystems.workers.dev/img/bag_1779385220190.jpeg",
       "images": [],
-      "createdAt": "2026-05-21T17:40:21.329Z",
-      "soldTo": {
-        "soldAt": "2026-05-21T18:05:52.195Z",
-        "salePrice": 1250
-      }
+      "createdAt": "2026-05-21T17:40:21.329Z"
     },
     {
       "id": "bag_1779385084469",
@@ -227,11 +219,7 @@
       "sold": true,
       "image": "https://thriftlux-api.stawisystems.workers.dev/img/bag_1779387176101.jpg",
       "images": [],
-      "createdAt": "2026-05-21T17:38:04.469Z",
-      "soldTo": {
-        "soldAt": "2026-05-21T18:05:41.616Z",
-        "salePrice": 1500
-      }
+      "createdAt": "2026-05-21T17:38:04.469Z"
     },
     {
       "id": "bag_1779384995905",
@@ -348,11 +336,7 @@
       "sold": true,
       "image": "https://thriftlux-api.stawisystems.workers.dev/img/bag_1779202377795.jpg",
       "images": [],
-      "createdAt": "2026-05-19T14:52:57.990Z",
-      "soldTo": {
-        "soldAt": "2026-05-19T14:53:44.712Z",
-        "salePrice": 1500
-      }
+      "createdAt": "2026-05-19T14:52:57.990Z"
     },
     {
       "id": "bag_1779202307396",
@@ -424,7 +408,7 @@
     {
       "id": "DYVFsjwtb5g",
       "name": "Camel Kelly-Style Pebbled Leather Top Handle Bag",
-      "description": "Hermès Kelly-inspired top handle bag in warm camel pebbled leather. Gold-tone turn-lock, detachable shoulder strap and structured silhouette.",
+      "description": "Hermï¿½s Kelly-inspired top handle bag in warm camel pebbled leather. Gold-tone turn-lock, detachable shoulder strap and structured silhouette.",
       "price": 4500,
       "sold": true,
       "image": "https://thriftlux-api.stawisystems.workers.dev/img/bag_1779005568349.jpg",
@@ -914,7 +898,7 @@
     {
       "id": "DXSFTEtDacT",
       "name": "Black Patent Leather Small Drew Chain Crossbody",
-      "description": "Chloé Drew-style small crossbody in glossy black patent leather. Saddle silhouette with chain detailing.",
+      "description": "Chloï¿½ Drew-style small crossbody in glossy black patent leather. Saddle silhouette with chain detailing.",
       "price": 1500,
       "sold": false,
       "image": "https://thriftlux-api.stawisystems.workers.dev/img/bag_1779166512818.jpg",

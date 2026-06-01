@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#0d0d0d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=22">
+<link rel="stylesheet" href="styles.css?v=20260601c">
 <!-- GHL form submit captcha (enterprise reCAPTCHA v3) -->
 <script src="https://www.google.com/recaptcha/enterprise.js?render=6LeDBFwpAAAAAJe8ux9-imrqZ2ueRsEtdiWoDDpX" async defer></script>
 </head>
@@ -72,6 +72,7 @@
     <a href="#salesDash">Sales</a>
     <a href="#invDash">Inventory</a>
     <a href="#broadcastDash">WhatsApp Marketing</a>
+    <a href="#clientsDash">Clients <span class="admin-nav-count" id="navClientsCount"></span></a>
     <a href="#loyaltyDash">Loyalty <span class="admin-nav-count" id="navLoyaltyCount"></span></a>
     <a href="#insightsDash">Insights</a>
     <a href="#allItems">All bags <span class="admin-nav-count" id="navItemCount"></span></a>
@@ -161,6 +162,22 @@
       <p id="broadcastStatus" style="font-size:13px;color:#4a4540;margin-top:10px;"></p>
       <div id="broadcastStepper" class="broadcast-stepper" style="display:none;margin-top:12px;"></div>
     </div>
+  </section>
+
+  <!-- ====== CLIENTS ====== -->
+  <section class="dash" id="clientsDash">
+    <h2 class="dash-title">Clients</h2>
+    <p style="font-size:13px;color:#8a857f;margin:-8px 0 16px;">Everyone who's bought from you, with what they bought and how to reach them. Save a buyer's name and phone when you mark a bag sold, and they'll appear here so you can message them when new stock lands.</p>
+    <div class="inv-kpi-grid" id="clientsKpiGrid"></div>
+    <div class="clients-controls">
+      <input type="search" id="clientsSearch" placeholder="Search by name or phone…" autocomplete="off">
+      <select id="clientsSort" class="sort-select">
+        <option value="recent">Most recent</option>
+        <option value="spend">Highest spend</option>
+        <option value="purchases">Most purchases</option>
+      </select>
+    </div>
+    <div id="clientsList" class="clients-list"></div>
   </section>
 
   <!-- ====== LOYALTY PROGRAM ====== -->
@@ -505,6 +522,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=20260601b"></script>
+<script src="admin.js?v=20260601c"></script>
 </body>
 </html>

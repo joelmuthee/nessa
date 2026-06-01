@@ -435,7 +435,20 @@ export default {
       // Paid-feature gate: loyalty program. Own KV key (like "suspended") so the
       // owner's /api/bulk publishes can never self-unlock it. Flipped by billing.
       data.loyaltyUnlocked = (await env.BAGS.get("loyalty_unlocked")) === "1";
-      return json(data, 200, { "Cache-Control": "public, max-age=10" });
+      // PRIVACY: each sold bag carries soldTo { name, phone, notes } — buyer PII.
+      // This endpoint is public, and the storefront only ever reads `sold`,
+      // `price`, `salePrice` (never soldTo). So strip soldTo for unauthed callers;
+      // the admin sends a Bearer token and gets the full data for its Clients view.
+      const admin = isAuthed(request, env);
+      if (!admin && Array.isArray(data.bags)) {
+        data.bags = data.bags.map(b => {
+          if (b && b.soldTo) { const { soldTo, ...rest } = b; return rest; }
+          return b;
+        });
+      }
+      return json(data, 200, admin
+        ? { "Cache-Control": "no-store" }
+        : { "Cache-Control": "public, max-age=10" });
     }
 
     // Billing only: flip the suspend flag. Authed by MASTER_TOKEN (not the shop admin token).
