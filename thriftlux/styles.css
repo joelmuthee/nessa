@@ -827,6 +827,10 @@ img { max-width: 100%; display: block; }
 .admin-nav a.admin-nav-cta:hover { background: var(--gold-deep); color: #fff; border-color: var(--gold-deep); }
 .admin-nav-count { display: inline-block; background: var(--line); color: var(--ink-soft); font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
 .admin-nav a:hover .admin-nav-count { background: rgba(255,255,255,0.15); color: var(--gold-light); }
+/* Scrollspy — the section you're currently viewing */
+.admin-nav a.active { background: var(--ink); color: var(--gold-light); border-color: var(--ink); }
+.admin-nav a.active .admin-nav-count { background: rgba(255,255,255,0.15); color: var(--gold-light); }
+.admin-nav a.admin-nav-cta.active { background: var(--gold-deep); color: #fff; border-color: var(--gold-deep); }
 #addForm, #salesDash, #invDash, #broadcastDash, #analyticsDash, #allItems { scroll-margin-top: 80px; }
 
 /* Dashboard cards */
