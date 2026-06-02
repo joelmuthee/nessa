@@ -734,6 +734,7 @@ let pendingBag = null;
 function openBuyerModal(bag) {
   pendingBag = bag;
   buyerName.value = ''; buyerPhone.value = ''; buyerNotes.value = '';
+  document.querySelectorAll('#saleModalPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'cash'));
   document.getElementById('buyerModalTitle').textContent = `Mark as sold: ${bag.name}`;
   buyerModal.style.display = 'flex';
   buyerName.focus();
@@ -743,6 +744,7 @@ function closeBuyerModal() { buyerModal.style.display = 'none'; pendingBag = nul
 async function commitSold(withBuyer) {
   if (!pendingBag) return;
   const targetId = pendingBag.id;
+  const payMethod = document.querySelector('#saleModalPay .pos-pay-btn.active')?.dataset.pay || 'cash';
   let buyerInfo = null;
   if (withBuyer) {
     const name = buyerName.value.trim();
@@ -761,14 +763,19 @@ async function commitSold(withBuyer) {
       // Record what it actually sold for: the sale price if it was on sale, else the regular price.
       const paid = (b.salePrice > 0 && b.salePrice < b.price) ? b.salePrice : (Number(b.price) || 0);
       b.soldTo = withBuyer
-        ? { ...buyerInfo, soldAt: new Date().toISOString(), salePrice: paid }
-        : { soldAt: new Date().toISOString(), salePrice: paid };
+        ? { ...buyerInfo, soldAt: new Date().toISOString(), salePrice: paid, paymentMethod: payMethod }
+        : { soldAt: new Date().toISOString(), salePrice: paid, paymentMethod: payMethod };
       delete b.salePrice; // no longer "on sale" once sold
       soldBag = b;
     });
     renderAll();
     showToast(withBuyer ? 'SOLD. Buyer saved.' : 'Marked as SOLD.');
     if (withBuyer && soldBag?.soldTo?.phone) { sendBuyerToGHL(soldBag); if (loyaltyUnlocked) openSaleThanks(soldBag); }
+    if (soldBag) {
+      lastPosSale = { name: soldBag.name, size: soldBag.size || '', qty: 1, amount: Number(soldBag.soldTo.salePrice || soldBag.price || 0), paymentMethod: payMethod, buyerName: soldBag.soldTo.name || '', buyerPhone: soldBag.soldTo.phone || '', soldAt: soldBag.soldTo.soldAt };
+      showPosReceipt(lastPosSale);
+      document.getElementById('posDash')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   } catch(err) {
     showToast('Sync failed: ' + err.message);
   }
@@ -1858,6 +1865,7 @@ function renderAll() {
   renderLoyalty();
   renderInsights();
   renderList();
+  renderPosToday();
 }
 
 // ====== INSTAGRAM BULK SYNC ======
@@ -2028,5 +2036,139 @@ function initNavScrollSpy() {
   window.addEventListener('resize', onScroll, { passive: true });
   update();
 }
+
+// ====== POS — SELL IN STORE (counter checkout) + RECEIPTS ======
+// Thrift one-of-one model: a sale MARKS the bag sold (sold:true + soldTo{...}),
+// no size/qty. Reuses commitSold's mechanics + the existing sales engine.
+let posItemId = '';
+let posPayMethod = 'cash';
+let lastPosSale = null;
+function posWaPhone(p) { let d = String(p || '').replace(/[^0-9]/g, ''); if (d.startsWith('0')) d = '254' + d.slice(1); else if (d.startsWith('7') || d.startsWith('1')) d = '254' + d; return d; }
+function posRenderResults(q) {
+  const box = document.getElementById('posItemResults');
+  const query = (q || '').toLowerCase();
+  if (!query) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const matches = bags.filter(b => !b.sold && (b.name || '').toLowerCase().includes(query)).slice(0, 12);
+  box.innerHTML = matches.length
+    ? matches.map(b => `<button type="button" class="client-item-opt" data-id="${b.id}">${escapeHtml(b.name)}<span>${fmtKsh(b.price)}</span></button>`).join('')
+    : '<div class="client-item-empty">No available items match.</div>';
+  box.style.display = '';
+}
+function posSelectItem(id) {
+  const bag = bags.find(b => b.id === id);
+  if (!bag || bag.sold) return;
+  posItemId = id;
+  document.getElementById('posItemSearch').value = bag.name;
+  document.getElementById('posItemResults').style.display = 'none';
+  document.getElementById('posPrice').value = (bag.salePrice > 0 && bag.salePrice < bag.price) ? bag.salePrice : (bag.price || '');
+  document.getElementById('posChosen').innerHTML = `Selling <strong>${escapeHtml(bag.name)}</strong> · <button type="button" id="posClearItem">change</button>`;
+  document.getElementById('posChosen').style.display = '';
+  document.getElementById('posSaleFields').style.display = '';
+  document.getElementById('posReceiptPanel').style.display = 'none';
+}
+function posReset() {
+  posItemId = ''; posPayMethod = 'cash';
+  ['posItemSearch', 'posBuyerName', 'posBuyerPhone'].forEach(i => { const el = document.getElementById(i); if (el) el.value = ''; });
+  document.getElementById('posItemResults').style.display = 'none';
+  document.getElementById('posChosen').style.display = 'none';
+  document.getElementById('posSaleFields').style.display = 'none';
+  document.getElementById('posReceiptPanel').style.display = 'none';
+  document.getElementById('posCustomerFields').style.display = 'none';
+  document.querySelectorAll('#posPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'cash'));
+}
+function posReceiptText(s) {
+  return [`*ThriftLux* receipt`, `${s.name}`, `Total: ${fmtKsh(s.amount)}. Paid by ${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}.`, `Thank you for shopping with us!`].join('\n');
+}
+function showPosReceipt(s) {
+  document.getElementById('posSaleFields').style.display = 'none';
+  document.getElementById('posChosen').style.display = 'none';
+  document.getElementById('posItemSearch').value = '';
+  const pay = s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
+  document.getElementById('posReceiptSummary').innerHTML = `<strong>${escapeHtml(s.name)}</strong><br>${fmtKsh(s.amount)} · paid by ${pay}`;
+  const wa = document.getElementById('posWaReceiptBtn');
+  if (s.buyerPhone && s.buyerPhone.replace(/[^0-9]/g, '').length >= 9) { wa.href = `https://wa.me/${posWaPhone(s.buyerPhone)}?text=${encodeURIComponent(posReceiptText(s))}`; wa.style.display = ''; }
+  else { wa.style.display = 'none'; }
+  document.getElementById('posReceiptPanel').style.display = '';
+}
+function posPrintReceipt() {
+  if (!lastPosSale) return;
+  const s = lastPosSale, d = new Date(s.soldAt);
+  document.getElementById('posReceiptPrint').innerHTML = `
+    <div class="rcpt">
+      <div class="rcpt-head">ThriftLux</div>
+      <div class="rcpt-sub">0705 044 940</div>
+      <hr>
+      <div class="rcpt-row"><span>${escapeHtml(s.name)}</span><span>${fmtKsh(s.amount)}</span></div>
+      <hr>
+      <div class="rcpt-row rcpt-total"><span>TOTAL</span><span>${fmtKsh(s.amount)}</span></div>
+      <div class="rcpt-row"><span>Paid by</span><span>${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}</span></div>
+      <div class="rcpt-date">${d.toLocaleString('en-GB')}</div>
+      <div class="rcpt-foot">Thank you for shopping with us!</div>
+    </div>`;
+  window.print();
+}
+function renderPosToday() {
+  const el = document.getElementById('posTodaySplit'); if (!el) return;
+  const todayStart = startOfDay(new Date());
+  let cashT = 0, mpesaT = 0, soldToday = 0;
+  bags.forEach(b => {
+    if (b.sold && b.soldTo && b.soldTo.soldAt && new Date(b.soldTo.soldAt) >= todayStart) {
+      const amt = Number(b.soldTo.salePrice != null ? b.soldTo.salePrice : (b.price || 0));
+      soldToday += 1;
+      if (b.soldTo.paymentMethod === 'mpesa') mpesaT += amt; else cashT += amt;
+    }
+  });
+  el.innerHTML = `<span class="pos-today-label">Today's takings</span>`
+    + `<span class="pos-chip cash">💵 Cash ${fmtKsh(cashT)}</span>`
+    + `<span class="pos-chip mpesa">📱 M-Pesa ${fmtKsh(mpesaT)}</span>`
+    + `<span class="pos-chip total">${soldToday} sold</span>`;
+}
+async function recordPosSale() {
+  const targetId = posItemId;
+  if (!targetId) { showToast('Pick an item first.'); return; }
+  const cur = bags.find(b => b.id === targetId);
+  if (!cur) { showToast('Item not found — refresh.'); return; }
+  if (cur.sold) { showToast('That item is already sold.'); return; }
+  const priceRaw = parseInt(document.getElementById('posPrice').value, 10);
+  const name = document.getElementById('posBuyerName').value.trim();
+  const phone = document.getElementById('posBuyerPhone').value.trim().replace(/[^0-9+]/g, '');
+  const soldAt = new Date().toISOString();
+  const btn = document.getElementById('posRecordBtn'); btn.disabled = true;
+  try {
+    let soldName = '', amount = 0;
+    await apiMutateAndPublish(() => {
+      const b = bags.find(x => x.id === targetId);
+      if (!b) throw new Error('Item no longer exists — refresh admin');
+      if (b.sold) throw new Error('Already sold — refresh admin');
+      amount = isNaN(priceRaw) ? (Number(b.price) || 0) : priceRaw;
+      b.sold = true;
+      b.soldTo = { name, phone, notes: '', soldAt, salePrice: amount, paymentMethod: posPayMethod };
+      delete b.salePrice;
+      soldName = b.name;
+      if (phone.replace(/[^0-9]/g, '').length >= 9) {
+        if (!Array.isArray(clients)) clients = [];
+        const norm = phone.replace(/[^0-9]/g, '');
+        const existing = clients.find(c => String(c.phone).replace(/[^0-9]/g, '') === norm);
+        if (existing) { if (name) existing.name = name; }
+        else clients.push({ id: 'c_' + Date.now(), name: name || '', phone, note: 'Walk-in (in-store)', createdAt: soldAt });
+      }
+    });
+    lastPosSale = { name: soldName, amount, paymentMethod: posPayMethod, buyerName: name, buyerPhone: phone, soldAt };
+    renderAll();
+    showPosReceipt(lastPosSale);
+    showToast(`Sold · ${fmtKsh(amount)}`);
+  } catch (e) { showToast('Error: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+document.getElementById('posItemSearch')?.addEventListener('input', e => { posItemId = ''; document.getElementById('posSaleFields').style.display = 'none'; document.getElementById('posChosen').style.display = 'none'; posRenderResults(e.target.value.trim()); });
+document.getElementById('posItemResults')?.addEventListener('click', e => { const opt = e.target.closest('.client-item-opt'); if (opt) posSelectItem(opt.dataset.id); });
+document.getElementById('posChosen')?.addEventListener('click', e => { if (e.target.id === 'posClearItem') posReset(); });
+document.getElementById('posPay')?.addEventListener('click', e => { const b = e.target.closest('.pos-pay-btn'); if (!b) return; posPayMethod = b.dataset.pay; document.querySelectorAll('#posPay .pos-pay-btn').forEach(x => x.classList.toggle('active', x === b)); });
+document.getElementById('saleModalPay')?.addEventListener('click', e => { const b = e.target.closest('.pos-pay-btn'); if (!b) return; document.querySelectorAll('#saleModalPay .pos-pay-btn').forEach(x => x.classList.toggle('active', x === b)); });
+document.getElementById('posAddCustomerToggle')?.addEventListener('click', () => { const f = document.getElementById('posCustomerFields'); f.style.display = f.style.display === 'none' ? '' : 'none'; });
+document.getElementById('posRecordBtn')?.addEventListener('click', recordPosSale);
+document.getElementById('posCancelBtn')?.addEventListener('click', posReset);
+document.getElementById('posNewSaleBtn')?.addEventListener('click', posReset);
+document.getElementById('posPrintReceiptBtn')?.addEventListener('click', posPrintReceipt);
 
 checkAuth();
