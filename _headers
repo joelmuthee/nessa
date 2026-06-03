@@ -1,0 +1,13 @@
+# Cloudflare Pages headers for the nessa project (hub site + /thriftlux catalog).
+#
+# The ThriftLux admin lives at /thriftlux/admin. By default CF Pages sends no
+# Cache-Control on HTML, so browsers — especially the WhatsApp/Instagram in-app
+# webviews owners use — heuristically cache a stale admin.html for hours. After a
+# redeploy the owner then sees an old admin (missing newly-added sections) until
+# that cache expires. `no-cache` forces a revalidation on every load (304 when
+# unchanged, fresh when redeployed) so admin changes show up immediately.
+# Versioned assets (admin.js?v=, styles.css?v=) keep their long cache.
+/thriftlux/admin
+  Cache-Control: no-cache, must-revalidate
+/thriftlux/admin.html
+  Cache-Control: no-cache, must-revalidate
