@@ -71,6 +71,14 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
 
   // ----- Insights tracking (per-browser, localStorage) -----
   // Five metrics per CATALOG-STANDARDS.md "Insights" rules.
+  // Mirror a key action to Google Analytics as an event, so GA reflects real
+  // intent (Enquire taps, item views) instead of engagement-time — which reads
+  // near-zero for this funnel (visitors bounce straight to WhatsApp, and
+  // link-preview bots load pages without ever engaging). No-op if GA absent.
+  function gaEvent(name, params) {
+    try { if (window.gtag) window.gtag('event', name, params || {}); } catch (_) {}
+  }
+
   function track(metric, key) {
     if (!key && key !== 0) return;
     try {
@@ -363,6 +371,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     const id = a.dataset.id;
     if (a.dataset.action === 'enquire') {
       track('itemEnquiries', id);
+      gaEvent('enquire', { item_id: id });
       // Tier 1: on mobile, push the real photo via the native share sheet; fall back to wa.me.
       const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
       if (isMobile && navigator.canShare) {
@@ -415,6 +424,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     const bag = bags.find(b => b.id === id);
     if (!bag) return;
     track('itemViews', id);
+    gaEvent('item_view', { item_id: id });
     lightboxImg.src = bag.image + '?' + IMG_VERSION;
     lightboxImg.alt = bag.name;
     const priceText = isOnSale(bag)
