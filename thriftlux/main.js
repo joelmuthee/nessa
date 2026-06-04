@@ -16,6 +16,8 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   let currentCategory = 'all';      // 'all' | category name
   let currentSort = 'featured';     // 'featured' | 'newest' | 'price-asc' | 'price-desc'
   let searchQuery = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 15;             // bags per page
 
   async function loadData() {
     try {
@@ -182,6 +184,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     container.querySelectorAll('.pill').forEach(p => {
       p.addEventListener('click', () => {
         currentCategory = p.dataset.cat;
+        currentPage = 1;
         render();
       });
     });
@@ -202,11 +205,23 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     });
 
     const availableCount = bags.filter(b => !b.sold).length;
+
+    // Pagination — clamp the page, slice the current window
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const visible = filtered.slice(start, start + PAGE_SIZE);
+    const showing = visible.length ? `${start + 1}-${start + visible.length}` : '0';
+
     if (filterMeta) {
       filterMeta.textContent = filtered.length === bags.length
-        ? `${bags.length} ${bags.length === 1 ? 'bag' : 'bags'} · ${availableCount} available`
-        : `${filtered.length} of ${bags.length} ${bags.length === 1 ? 'bag' : 'bags'}`;
+        ? `Showing ${showing} of ${bags.length} ${bags.length === 1 ? 'bag' : 'bags'} · ${availableCount} available`
+        : `Showing ${showing} of ${filtered.length} ${filtered.length === 1 ? 'bag' : 'bags'}`;
     }
+
+    // Drop any existing pager before re-rendering the grid
+    const oldPager = document.getElementById('pagerWrap');
+    if (oldPager) oldPager.remove();
 
     if (!filtered.length) {
       gallery.innerHTML = `
@@ -216,7 +231,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       return;
     }
 
-    gallery.innerHTML = filtered.map(bag => {
+    gallery.innerHTML = visible.map(bag => {
       const igUrl = bag.instagramUrl || bag.reel || '';
       let priceLine;
       if (isOnSale(bag)) {
@@ -261,6 +276,48 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
         </div>
       </article>
     `;}).join('');
+
+    // Numbered pagination — sits just below the grid
+    if (totalPages > 1) {
+      const wrap = document.createElement('div');
+      wrap.id = 'pagerWrap';
+      wrap.className = 'pager-wrap';
+      const pages = pageRange(currentPage, totalPages);
+      const btn = (label, page, opts = {}) => {
+        const cls = ['pager-btn'];
+        if (opts.active) cls.push('active');
+        if (opts.disabled) cls.push('disabled');
+        if (opts.ellipsis) cls.push('ellipsis');
+        const dataPage = opts.disabled || opts.ellipsis ? '' : ` data-page="${page}"`;
+        return `<button class="${cls.join(' ')}"${dataPage}${opts.disabled ? ' disabled' : ''}>${label}</button>`;
+      };
+      wrap.innerHTML = [
+        btn('‹', currentPage - 1, { disabled: currentPage === 1 }),
+        ...pages.map(p => p === '…' ? btn('…', null, { ellipsis: true }) : btn(p, p, { active: p === currentPage })),
+        btn('›', currentPage + 1, { disabled: currentPage === totalPages }),
+      ].join('');
+      gallery.parentNode.insertBefore(wrap, gallery.nextSibling);
+      wrap.querySelectorAll('.pager-btn[data-page]').forEach(b => {
+        b.addEventListener('click', () => {
+          const p = parseInt(b.dataset.page, 10);
+          if (!isNaN(p) && p >= 1 && p <= totalPages && p !== currentPage) {
+            currentPage = p;
+            render();
+            (document.getElementById('shop') || gallery).scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      });
+    }
+  }
+
+  function pageRange(cur, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages = [1];
+    if (cur > 3) pages.push('…');
+    for (let p = Math.max(2, cur - 1); p <= Math.min(total - 1, cur + 1); p++) pages.push(p);
+    if (cur < total - 2) pages.push('…');
+    pages.push(total);
+    return pages;
   }
 
   function escapeHtml(s) {
@@ -269,7 +326,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
 
   // ----- Wire filter pills -----
   document.querySelectorAll('.filter-pills--availability .pill').forEach(p => {
-    p.addEventListener('click', () => { currentFilter = p.dataset.filter; render(); });
+    p.addEventListener('click', () => { currentFilter = p.dataset.filter; currentPage = 1; render(); });
   });
 
   // ----- Wire search -----
@@ -281,7 +338,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       const v = e.target.value;
       if (searchClear) searchClear.hidden = !v;
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => { searchQuery = v.trim(); render(); }, 180);
+      searchTimer = setTimeout(() => { searchQuery = v.trim(); currentPage = 1; render(); }, 180);
     });
   }
   if (searchClear) {
@@ -289,6 +346,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       searchInput.value = '';
       searchClear.hidden = true;
       searchQuery = '';
+      currentPage = 1;
       render();
       searchInput.focus();
     });
@@ -296,7 +354,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
 
   // ----- Wire sort -----
   const sortSelect = document.getElementById('sortSelect');
-  if (sortSelect) sortSelect.addEventListener('change', () => { currentSort = sortSelect.value; render(); });
+  if (sortSelect) sortSelect.addEventListener('change', () => { currentSort = sortSelect.value; currentPage = 1; render(); });
 
   // ----- Insights: track enquire + IG clicks via event delegation -----
   gallery.addEventListener('click', async e => {

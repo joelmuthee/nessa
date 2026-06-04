@@ -247,6 +247,14 @@ img { max-width: 100%; display: block; }
   gap: 28px;
   padding: 16px 0 80px;
 }
+
+/* Numbered pagination */
+.pager-wrap { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 16px 72px; }
+.pager-btn { min-width: 40px; height: 40px; padding: 0 12px; border: 1px solid var(--line); background: var(--bg-card); color: var(--ink); border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.15s; display: inline-flex; align-items: center; justify-content: center; }
+.pager-btn:hover:not(.disabled):not(.active):not(.ellipsis) { background: var(--gold-light); border-color: var(--gold); color: var(--ink); }
+.pager-btn.active { background: var(--ink); color: var(--gold-light); border-color: var(--ink); cursor: default; }
+.pager-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+.pager-btn.ellipsis { border: none; background: transparent; cursor: default; }
 .card {
   background: var(--bg-card);
   border-radius: var(--radius);
