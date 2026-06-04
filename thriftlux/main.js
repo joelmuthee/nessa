@@ -131,29 +131,6 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   }
 
-  // Tier 1 (mobile): share the actual product photo through the native share sheet so it
-  // arrives in WhatsApp as a real image attachment, not just a link that may not preview.
-  // Returns true if shared; false to fall back to the wa.me link.
-  async function tryShareWithImage(bag) {
-    if (!navigator.canShare || !navigator.share) return false;
-    if (!bag.image) return false;
-    try {
-      const res = await fetch(bag.image, { mode: 'cors' });
-      if (!res.ok) return false;
-      const blob = await res.blob();
-      const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-      const file = new File([blob], `${String(bag.name || 'bag').replace(/[^a-z0-9]+/gi, '_')}.${ext}`, { type: blob.type });
-      if (!navigator.canShare({ files: [file] })) return false;
-      const message = enquireBody(bag);
-      try { await navigator.clipboard.writeText(message); } catch (_) { /* ignore */ }
-      await navigator.share({ files: [file], text: message, title: bag.name });
-      return true;
-    } catch (_) {
-      // user cancelled or share failed — caller falls back to wa.me
-      return false;
-    }
-  }
-
   // ----- Filter / sort / search pipeline -----
   function visibleBags() {
     let out = bags.slice();
@@ -365,23 +342,17 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   if (sortSelect) sortSelect.addEventListener('change', () => { currentSort = sortSelect.value; currentPage = 1; render(); });
 
   // ----- Insights: track enquire + IG clicks via event delegation -----
-  gallery.addEventListener('click', async e => {
+  gallery.addEventListener('click', e => {
     const a = e.target.closest('[data-action]');
     if (!a) return;
     const id = a.dataset.id;
     if (a.dataset.action === 'enquire') {
+      // Enquire opens WhatsApp directly via the anchor's wa.me href (target=_blank).
+      // Do NOT call navigator.share here — it forces the OS "select an app" chooser,
+      // which confuses buyers (rejected on Ryker/Nzuri too). The wa.me message already
+      // appends the /share/<id> OG page, so WhatsApp still renders the preview card.
       track('itemEnquiries', id);
       gaEvent('enquire', { item_id: id });
-      // Tier 1: on mobile, push the real photo via the native share sheet; fall back to wa.me.
-      const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-      if (isMobile && navigator.canShare) {
-        const bag = bags.find(b => b.id === id);
-        if (bag) {
-          e.preventDefault();
-          const shared = await tryShareWithImage(bag);
-          if (!shared) window.open(a.href, '_blank', 'noopener');
-        }
-      }
     }
     if (a.dataset.action === 'ig-click') track('itemIgClicks', id);
   });
