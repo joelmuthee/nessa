@@ -254,7 +254,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
             ${igUrl
               ? `<a class="btn-card" href="${escapeHtml(igUrl)}" target="_blank" rel="noopener" data-action="ig-click" data-id="${bag.id}">
                   <svg class="ig-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>
-                  View on IG
+                  360° view
                 </a>`
               : '<span class="btn-card" style="opacity:0.4;cursor:default;">No reel</span>'}
           </div>
