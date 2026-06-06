@@ -707,7 +707,7 @@ img { max-width: 100%; display: block; }
 .sale-mode-btn.active { background: var(--ink); color: var(--gold-light); border-color: var(--ink); }
 
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
-.modal-card { background: #fff; border-radius: 14px; padding: 28px; max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.modal-card { background: #fff; border-radius: 14px; padding: 28px; max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .modal-card h3 { font-family: var(--serif); font-size: 24px; font-weight: 500; margin: 0 0 4px; }
 .sync-panel { background: #fff; border: 1.5px solid #d4c5b0; border-radius: 14px; padding: 22px 24px; margin-bottom: 24px; }
 .sync-panel h3 { font-family: var(--serif); font-size: 20px; font-weight: 500; margin: 0 0 8px; }
