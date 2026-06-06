@@ -1668,12 +1668,14 @@ img { max-width: 100%; display: block; }
   padding: 1px 5px; border-radius: 4px; vertical-align: middle; line-height: 1.5;
 }
 .clients-controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 14px; }
-.clients-controls #clientsSearch {
+.clients-controls #clientsSearch,
+.clients-controls #owedSearch {
   flex: 1; min-width: 180px;
   padding: 10px 14px; border: 1px solid var(--line, #e1e1e3); border-radius: 10px;
   font-size: 14px; background: #fff;
 }
-.clients-controls #clientsSearch:focus { outline: none; border-color: var(--gold, #c9a227); }
+.clients-controls #clientsSearch:focus,
+.clients-controls #owedSearch:focus { outline: none; border-color: var(--gold, #c9a227); }
 .clients-list {
   display: flex; flex-direction: column; gap: 10px;
   max-height: 360px; overflow-y: auto;
