@@ -4,6 +4,7 @@
 const ADMIN_PASSWORD = 'thriftlux2026';
 const API_BASE = 'https://thriftlux-api.stawisystems.workers.dev';
 const ADMIN_TOKEN = atob('TGRCVjlCUEJzNTBrWXBzQjdNWUs1eDlUR1ZNNlh3bE5VUEMzTVRzN3BpUQ==');
+const SHOP_URL = 'https://nessa.co.ke/thriftlux'; // public storefront — used in WhatsApp messages to clients
 
 let bags = [];
 let settings = {};
@@ -1158,7 +1159,6 @@ function buildBroadcastMessage(firstName) {
   // Instagram. The shop browse link goes last: nessa.co.ke is a CF zone that
   // 403s the WA crawler, so it can't be the first/previewed link anyway.
   const SHARE_BASE = 'https://thriftlux-api.stawisystems.workers.dev/share/';
-  const SHOP_URL = 'https://nessa.co.ke/thriftlux';
   let msg = `Hi ${firstName}! `;
   if (subject) msg += subject + '\n\n';
   if (items.length) {
@@ -1391,7 +1391,7 @@ function renderClients() {
 window.clientMessage = phone => {
   const c = customerLedger().find(x => x.phone === phone);
   const first = (c && c.name ? c.name : 'there').split(' ')[0];
-  const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Want me to send you what just landed?\nVenessa, ThriftLux`;
+  const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Browse what just landed here: ${SHOP_URL}\n\nReply here if anything catches your eye 💛\nVenessa, ThriftLux`;
   window.open(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 document.getElementById('clientsSearch')?.addEventListener('input', e => { clientsQuery = e.target.value.trim(); renderClients(); });
