@@ -1372,6 +1372,7 @@ function renderClients() {
         </div>
         <div class="client-row-actions">
           <button class="btn-admin gold" onclick="clientMessage('${c.phone}')">WhatsApp</button>
+          <button class="btn-admin" onclick="openEditClient('${c.phone}')">Edit</button>
           ${removeBtn}
         </div>
       </div>`;
@@ -1419,15 +1420,41 @@ function acClearItem() {
   document.getElementById('addClientChosen').style.display = 'none';
   document.getElementById('addClientSaleFields').style.display = 'none';
 }
+// When set, the client modal is editing an existing customer (by their original
+// phone) rather than adding a new one. Cleared on every open/close.
+let editingClientPhone = null;
+function _clientModalMode(edit) {
+  const t = document.getElementById('addClientTitle'); if (t) t.textContent = edit ? 'Edit customer details' : 'Add a client';
+  const bagField = document.getElementById('addClientBagField'); if (bagField) bagField.style.display = edit ? 'none' : '';
+  document.getElementById('addClientSaleFields').style.display = 'none';
+  const save = document.getElementById('addClientSaveBtn'); if (save) save.textContent = edit ? 'Save changes' : 'Save client';
+}
 function openAddClient() {
+  editingClientPhone = null;
   document.getElementById('addClientName').value = '';
   document.getElementById('addClientPhone').value = '';
   document.getElementById('addClientNote').value = '';
   acClearItem();
+  _clientModalMode(false);
   document.getElementById('addClientModal').style.display = 'flex';
   document.getElementById('addClientName').focus();
 }
-function closeAddClient() { document.getElementById('addClientModal').style.display = 'none'; }
+// Edit an existing customer's details (name, phone, note). Updates the client
+// record AND re-labels this customer's sales (soldTo name/phone) so the Owed,
+// Clients and Sales views all stay consistent. Per-sale notes are left intact.
+window.openEditClient = (phone) => {
+  const c = customerLedger().find(x => x.phone === phone);
+  if (!c) { showToast('Customer not found.'); return; }
+  editingClientPhone = c.phone;
+  document.getElementById('addClientName').value = c.name || '';
+  document.getElementById('addClientPhone').value = c.phone || '';
+  document.getElementById('addClientNote').value = c.note || '';
+  acClearItem();
+  _clientModalMode(true);
+  document.getElementById('addClientModal').style.display = 'flex';
+  document.getElementById('addClientName').focus();
+};
+function closeAddClient() { document.getElementById('addClientModal').style.display = 'none'; editingClientPhone = null; }
 document.getElementById('clientsAddBtn')?.addEventListener('click', openAddClient);
 document.getElementById('addClientCancelBtn')?.addEventListener('click', closeAddClient);
 document.getElementById('addClientModal')?.addEventListener('click', e => { if (e.target.id === 'addClientModal') closeAddClient(); });
@@ -1450,9 +1477,33 @@ document.getElementById('addClientSaveBtn')?.addEventListener('click', async () 
   const note = document.getElementById('addClientNote').value.trim();
   if (!name) { showToast('Enter a name.'); return; }
   if (phone.replace(/[^0-9]/g, '').length < 9) { showToast('Enter a valid phone number.'); return; }
+  const btn = document.getElementById('addClientSaveBtn');
+  // ----- Edit mode: update an existing customer's details -----
+  if (editingClientPhone) {
+    const oldKey = phoneKey(editingClientPhone);
+    btn.disabled = true;
+    try {
+      await apiMutateAndPublish(() => {
+        if (!Array.isArray(clients)) clients = [];
+        const rec = clients.find(c => phoneKey(c.phone) === oldKey);
+        if (rec) { rec.name = name; rec.phone = phone; rec.note = note; }
+        else clients.push({ id: 'c_' + Date.now(), name, phone, note, createdAt: new Date().toISOString() });
+        // Re-label this customer's sales so Owed/Sales/Clients stay in sync.
+        // Identity only (name + phone) — leave each sale's own note untouched.
+        for (const b of bags) {
+          if (b.soldTo && phoneKey(b.soldTo.phone) === oldKey) { b.soldTo.name = name; b.soldTo.phone = phone; }
+        }
+      });
+      closeAddClient();
+      renderAll();
+      showToast('Customer details updated.');
+    } catch (e) { showToast('Save failed: ' + e.message); }
+    finally { btn.disabled = false; }
+    return;
+  }
+  // ----- Add mode -----
   const itemId = acItemId;
   const paid = itemId ? (parseInt(document.getElementById('addClientPrice').value, 10) || 0) : 0;
-  const btn = document.getElementById('addClientSaveBtn');
   btn.disabled = true;
   try {
     await apiMutateAndPublish(() => {
@@ -2436,7 +2487,7 @@ function posSelectItem(id) {
 }
 function posReset() {
   posItemId = ''; posPayMethod = 'mpesa';
-  ['posItemSearch', 'posBuyerName', 'posBuyerPhone'].forEach(i => { const el = document.getElementById(i); if (el) el.value = ''; });
+  ['posItemSearch', 'posBuyerName', 'posBuyerPhone', 'posBuyerNote'].forEach(i => { const el = document.getElementById(i); if (el) el.value = ''; });
   document.getElementById('posItemResults').style.display = 'none';
   document.getElementById('posChosen').style.display = 'none';
   document.getElementById('posSaleFields').style.display = 'none';
@@ -2500,6 +2551,7 @@ async function recordPosSale() {
   const priceRaw = parseInt(document.getElementById('posPrice').value, 10);
   const name = document.getElementById('posBuyerName').value.trim();
   const phone = document.getElementById('posBuyerPhone').value.trim().replace(/[^0-9+]/g, '');
+  const note = (document.getElementById('posBuyerNote')?.value || '').trim();
   const soldAt = new Date().toISOString();
   const btn = document.getElementById('posRecordBtn'); btn.disabled = true;
   try {
@@ -2512,7 +2564,7 @@ async function recordPosSale() {
       b.sold = true;
       // Owed feature: capture cash taken now (blank = paid in full)
       const posPaidRaw = (document.getElementById('posPaid')?.value || '').trim();
-      const soldTo = { name, phone, notes: '', soldAt, salePrice: amount, paymentMethod: posPayMethod };
+      const soldTo = { name, phone, notes: note, soldAt, salePrice: amount, paymentMethod: posPayMethod };
       if (posPaidRaw !== '') {
         soldTo.amountPaid = Math.min(amount, Math.max(0, parseInt(posPaidRaw, 10) || 0));
       }
