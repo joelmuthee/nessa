@@ -1163,10 +1163,10 @@ function buildBroadcastMessage(firstName) {
   if (subject) msg += subject + '\n\n';
   if (items.length) {
     msg += 'New drops you might love:\n';
-    items.forEach(b => { msg += `\n• ${b.name} — ${fmtKsh(b.price)}\n  ${SHARE_BASE}${encodeURIComponent(b.id)}`; });
+    items.forEach(b => { msg += `\n• ${b.name} · ${fmtKsh(b.price)}\n  ${SHARE_BASE}${encodeURIComponent(b.id)}`; });
     msg += '\n\n';
   }
-  msg += `Browse the full shop: ${SHOP_URL}\n\nReply here if anything catches your eye 💛\n— Venessa, ThriftLux`;
+  msg += `Browse the full shop: ${SHOP_URL}\n\nReply here if anything catches your eye 💛\nVenessa, ThriftLux`;
   return msg;
 }
 function updateBroadcastPreview() {
@@ -1391,7 +1391,7 @@ function renderClients() {
 window.clientMessage = phone => {
   const c = customerLedger().find(x => x.phone === phone);
   const first = (c && c.name ? c.name : 'there').split(' ')[0];
-  const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Want me to send you what just landed?\n— Venessa, ThriftLux`;
+  const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Want me to send you what just landed?\nVenessa, ThriftLux`;
   window.open(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 document.getElementById('clientsSearch')?.addEventListener('input', e => { clientsQuery = e.target.value.trim(); renderClients(); });
@@ -1572,7 +1572,7 @@ function loyaltyMessage(c, conf, st) {
     const remaining = conf.threshold - st.progress;
     msg += `You've collected ${st.progress} of ${conf.threshold} stamps with ThriftLux. ${remaining} more and ${conf.rewardLabel} is yours 💛`;
   }
-  return msg + `\n— Venessa, ThriftLux`;
+  return msg + `\nVenessa, ThriftLux`;
 }
 
 function syncLoyaltyModeUI(mode) {
@@ -1759,7 +1759,7 @@ function thankYouMessage(bag, c, conf, st) {
       msg += `\n\nYou now have ${st.available} stamp${st.available === 1 ? '' : 's'} on your loyalty card. ${remaining} more and ${conf.rewardLabel} is yours.`;
     }
   }
-  return msg + `\n— Venessa, ThriftLux`;
+  return msg + `\nVenessa, ThriftLux`;
 }
 
 function openSaleThanks(bag) {
