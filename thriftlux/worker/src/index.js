@@ -449,6 +449,11 @@ export default {
     if (request.method === "GET" && path === "/api/bags") {
       const raw = await env.BAGS.get("data");
       const data = raw ? JSON.parse(raw) : { bags: [], settings: {} };
+      // Optimistic-concurrency version. The admin echoes this back as `baseRev`
+      // on every save; /api/bulk rejects (409) any save built on a stale rev so
+      // an idle/always-open tab can't overwrite a newer sale. Default 0 for data
+      // written before versioning existed.
+      if (typeof data.rev !== "number") data.rev = 0;
       // Billing kill-switch: stored in its own KV key so the owner's admin
       // publishes (which only write "data") can never clear it.
       data.suspended = (await env.BAGS.get("suspended")) === "1";
@@ -685,10 +690,26 @@ export default {
       if (body.bags.length === 0 && !body.force) {
         return json({ error: "refusing to publish empty bags array — pass force:true to override" }, 400);
       }
-      const payload = { bags: body.bags, settings: body.settings || {} };
+      // Optimistic concurrency: the save must be based on the current rev. This
+      // is what stops an always-open / stale admin tab (or old cached admin code)
+      // from clobbering a sale another device just recorded — it gets a 409 and
+      // the admin retries against fresh data. `force:true` bypasses the check for
+      // authoritative one-shot writers (seed tools, recovery scripts).
+      const curRaw = await env.BAGS.get("data");
+      const curData = curRaw ? JSON.parse(curRaw) : {};
+      const curRev = typeof curData.rev === "number" ? curData.rev : 0;
+      if (!body.force) {
+        if (typeof body.baseRev !== "number") {
+          return json({ error: "stale admin — please refresh the page and try again", currentRev: curRev }, 409);
+        }
+        if (body.baseRev !== curRev) {
+          return json({ error: "someone else saved first — refreshing and retrying", currentRev: curRev }, 409);
+        }
+      }
+      const payload = { bags: body.bags, settings: body.settings || {}, rev: curRev + 1 };
       if (Array.isArray(body.clients)) payload.clients = body.clients;
       await env.BAGS.put("data", JSON.stringify(payload));
-      return json({ ok: true, count: body.bags.length });
+      return json({ ok: true, count: body.bags.length, rev: payload.rev });
     }
 
     if (request.method === "POST" && path === "/api/image") {
@@ -1065,6 +1086,9 @@ export default {
 
       // Newest posts go to the top of the catalog
       data.bags = newBags.concat(data.bags);
+      // Bump the concurrency rev so any admin tab open during the sync is forced
+      // to refetch before its next save (can't clobber the freshly-added bags).
+      data.rev = (typeof data.rev === "number" ? data.rev : 0) + 1;
       await env.BAGS.put("data", JSON.stringify(data));
       return json({ ok: true, added: added.length, errors, items: added });
     }

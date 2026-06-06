@@ -10,6 +10,7 @@ let settings = {};
 let clients = []; // manually-added clients (server-synced); sale buyers derived from soldTo
 let accountSuspended = false;
 let loyaltyUnlocked = false;
+let dataRev = 0; // optimistic-concurrency version of the catalogue (from /api/bags); echoed back on save
 let editingId = null;
 // stagedImage = { base64, ext, dataUrl } | null
 let stagedImage = null;
@@ -122,16 +123,24 @@ async function apiUploadImage(base64, ext) {
 
 // Low-level publish of the current in-memory `bags`. Prefer apiMutateAndPublish
 // for any user-triggered write — direct use risks clobbering concurrent edits.
+// Sends `baseRev` so the worker can reject a save built on stale data (409); on
+// a version conflict it throws an error tagged `.conflict` so the caller can
+// refetch + reapply. Updates `dataRev` from the worker's new rev on success.
 async function publishBags() {
   const res = await fetch(`${API_BASE}/api/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify({ bags, settings, clients }),
+    body: JSON.stringify({ bags, settings, clients, baseRev: dataRev }),
   });
+  if (res.status === 409) {
+    const e = new Error('version conflict'); e.conflict = true; throw e;
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Save failed: ${res.status}`);
   }
+  const out = await res.json().catch(() => ({}));
+  if (typeof out.rev === 'number') dataRev = out.rev;
 }
 
 // Every admin write MUST go through this. It refetches live KV, applies the
@@ -140,18 +149,35 @@ async function publishBags() {
 // That stale-overwrite was the bug that deleted Venessa's bags once before.
 // Mutators close over module-level `bags` and MUST look up bags by id inside
 // the callback — any reference captured before the fetch is stale.
+//
+// Optimistic concurrency: each attempt fetches fresh (capturing `dataRev`),
+// reapplies the mutation, and publishes with that baseRev. If another device
+// saved in between, the worker returns 409 and we retry against the new data —
+// so two devices saving at once never lose a write, they serialize. The mutator
+// is written to be idempotent across retries (looks bags up by id on the fresh
+// list each time), which is the same contract that already made it safe.
 async function apiMutateAndPublish(mutate) {
   if (accountSuspended) throw new Error(SUSPENDED_MSG);
-  const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } });
-  if (!res.ok) throw new Error(`Failed to load fresh data: ${res.status}`);
-  const json = await res.json();
-  bags = Array.isArray(json.bags) ? json.bags : [];
-  settings = json.settings || {};
-  clients = Array.isArray(json.clients) ? json.clients : [];
-  loyaltyUnlocked = !!json.loyaltyUnlocked;
-  backfill();
-  await mutate();
-  await publishBags();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await fetch(`${API_BASE}/api/bags?_=${Date.now()}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } });
+    if (!res.ok) throw new Error(`Failed to load fresh data: ${res.status}`);
+    const json = await res.json();
+    bags = Array.isArray(json.bags) ? json.bags : [];
+    settings = json.settings || {};
+    clients = Array.isArray(json.clients) ? json.clients : [];
+    loyaltyUnlocked = !!json.loyaltyUnlocked;
+    dataRev = typeof json.rev === 'number' ? json.rev : 0;
+    backfill();
+    await mutate();
+    try {
+      await publishBags();
+      return;
+    } catch (e) {
+      if (e.conflict) continue; // someone saved between our fetch and publish — refetch + reapply
+      throw e;
+    }
+  }
+  throw new Error('Another device kept saving at the same time. Please try again.');
 }
 
 async function loadData() {
@@ -162,6 +188,7 @@ async function loadData() {
   clients = Array.isArray(json.clients) ? json.clients : [];
   accountSuspended = !!json.suspended;
   loyaltyUnlocked = !!json.loyaltyUnlocked;
+  dataRev = typeof json.rev === 'number' ? json.rev : 0;
   backfill();
 }
 
@@ -2304,6 +2331,37 @@ async function init() {
   renderAll();
   renderTrash();
   initNavScrollSpy();
+  initAutoRefresh();
+}
+
+// Keep an always-open admin tab from showing stale data: when the tab regains
+// focus, pull the latest catalogue and re-render. Sales/owed entered on another
+// device then appear here without a manual reload. Skipped whenever the owner is
+// mid-action (typing in a field, editing an item, or a modal is open) so it can
+// never wipe in-progress input. This is a VIEW refresh only — saves are already
+// protected by the rev check in apiMutateAndPublish.
+let _autoRefreshing = false;
+function adminIsBusy() {
+  if (editingId) return true;
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+  // any modal currently shown (modals toggle inline display)
+  return Array.from(document.querySelectorAll('[id*="Modal"]'))
+    .some(el => el.style && el.style.display && el.style.display !== 'none');
+}
+async function autoRefresh() {
+  if (_autoRefreshing || accountSuspended || adminIsBusy()) return;
+  _autoRefreshing = true;
+  try {
+    const before = dataRev;
+    await loadData();
+    if (dataRev !== before) { renderAll(); renderTrash(); } // only re-render if data actually changed
+  } catch (_) { /* offline / transient — ignore, try again on next focus */ }
+  finally { _autoRefreshing = false; }
+}
+function initAutoRefresh() {
+  window.addEventListener('focus', autoRefresh);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoRefresh(); });
 }
 
 /* ===== Nav scrollspy — highlight the section currently in view ===== */

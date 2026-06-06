@@ -231,7 +231,7 @@ green "▶ Seeding empty catalog in database…"
 curl -s -X POST "$WORKER_URL/api/bulk" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"bags\":[],\"settings\":{\"whatsappNumber\":\"$WHATSAPP\"}}" > /dev/null
+  -d "{\"bags\":[],\"settings\":{\"whatsappNumber\":\"$WHATSAPP\"},\"force\":true}" > /dev/null
 echo "   ✓ Catalog ready (empty, client adds bags via admin)"
 
 # ───────────────────────────────────────────────────────────────────
