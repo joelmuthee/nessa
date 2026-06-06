@@ -853,7 +853,7 @@ let pendingBag = null;
 function openBuyerModal(bag) {
   pendingBag = bag;
   buyerName.value = ''; buyerPhone.value = ''; buyerNotes.value = '';
-  document.querySelectorAll('#saleModalPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'cash'));
+  document.querySelectorAll('#saleModalPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
   // Reset amount-paid input (Owed feature) — default to paid in full
   const paid = document.getElementById('buyerPaid');
   if (paid) { paid.value = ''; paid.placeholder = 'Paid in full'; }
@@ -869,7 +869,7 @@ function closeBuyerModal() { buyerModal.style.display = 'none'; pendingBag = nul
 async function commitSold(withBuyer) {
   if (!pendingBag) return;
   const targetId = pendingBag.id;
-  const payMethod = document.querySelector('#saleModalPay .pos-pay-btn.active')?.dataset.pay || 'cash';
+  const payMethod = document.querySelector('#saleModalPay .pos-pay-btn.active')?.dataset.pay || 'mpesa';
   let buyerInfo = null;
   if (withBuyer) {
     const name = buyerName.value.trim();
@@ -2114,7 +2114,7 @@ function openPayDebt(phone) {
   document.getElementById('payDebtName').textContent = c.name || c.phone;
   document.getElementById('payDebtOwed').textContent = fmtKsh(c.owed);
   document.getElementById('payDebtAmount').value = c.owed;
-  document.querySelectorAll('#payDebtPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'cash'));
+  document.querySelectorAll('#payDebtPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
   document.getElementById('payDebtModal').style.display = 'flex';
   document.getElementById('payDebtAmount').focus();
 }
@@ -2129,7 +2129,7 @@ document.getElementById('payDebtPay')?.addEventListener('click', e => {
 document.getElementById('payDebtSaveBtn')?.addEventListener('click', async () => {
   const phone = payingPhone;
   const amount = parseInt(document.getElementById('payDebtAmount').value, 10);
-  const method = document.querySelector('#payDebtPay .pos-pay-btn.active')?.dataset.pay || 'cash';
+  const method = document.querySelector('#payDebtPay .pos-pay-btn.active')?.dataset.pay || 'mpesa';
   if (!phone) return;
   if (isNaN(amount) || amount <= 0) { showToast('Enter how much they paid.'); return; }
   closePayDebt();
@@ -2409,7 +2409,7 @@ function initNavScrollSpy() {
 // Thrift one-of-one model: a sale MARKS the bag sold (sold:true + soldTo{...}),
 // no size/qty. Reuses commitSold's mechanics + the existing sales engine.
 let posItemId = '';
-let posPayMethod = 'cash';
+let posPayMethod = 'mpesa';
 let lastPosSale = null;
 function posWaPhone(p) { let d = String(p || '').replace(/[^0-9]/g, ''); if (d.startsWith('0')) d = '254' + d.slice(1); else if (d.startsWith('7') || d.startsWith('1')) d = '254' + d; return d; }
 function posRenderResults(q) {
@@ -2435,14 +2435,14 @@ function posSelectItem(id) {
   document.getElementById('posReceiptPanel').style.display = 'none';
 }
 function posReset() {
-  posItemId = ''; posPayMethod = 'cash';
+  posItemId = ''; posPayMethod = 'mpesa';
   ['posItemSearch', 'posBuyerName', 'posBuyerPhone'].forEach(i => { const el = document.getElementById(i); if (el) el.value = ''; });
   document.getElementById('posItemResults').style.display = 'none';
   document.getElementById('posChosen').style.display = 'none';
   document.getElementById('posSaleFields').style.display = 'none';
   document.getElementById('posReceiptPanel').style.display = 'none';
   document.getElementById('posCustomerFields').style.display = '';
-  document.querySelectorAll('#posPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'cash'));
+  document.querySelectorAll('#posPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
 }
 function posReceiptText(s) {
   return [`*ThriftLux* receipt`, `${s.name}`, `Total: ${fmtKsh(s.amount)}. Paid by ${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}.`, `Thank you for shopping with us!`].join('\n');
