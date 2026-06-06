@@ -2586,7 +2586,7 @@ async function recordPosSale() {
         const norm = phone.replace(/[^0-9]/g, '');
         const existing = clients.find(c => String(c.phone).replace(/[^0-9]/g, '') === norm);
         if (existing) { if (name) existing.name = name; }
-        else clients.push({ id: 'c_' + Date.now(), name: name || '', phone, note: 'Walk-in (in-store)', createdAt: soldAt });
+        else clients.push({ id: 'c_' + Date.now(), name: name || '', phone, note, createdAt: soldAt });
       }
     });
     lastPosSale = { name: soldName, amount, paymentMethod: posPayMethod, buyerName: name, buyerPhone: phone, soldAt };
