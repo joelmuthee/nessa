@@ -1209,7 +1209,7 @@ function renderBroadcastStepper() {
     return;
   }
   const r = bcQueue[bcIdx];
-  const href = `https://wa.me/${r.phone}?text=${encodeURIComponent(buildBroadcastMessage(r.name))}`;
+  const href = `https://wa.me/${waPhone(r.phone)}?text=${encodeURIComponent(buildBroadcastMessage(r.name))}`;
   el.style.display = 'block';
   el.innerHTML = `
     <div class="bc-step-head">Sending ${bcIdx + 1} of ${bcQueue.length}</div>
@@ -1256,7 +1256,7 @@ document.getElementById('broadcastStartBtn').addEventListener('click', async () 
       return;
     }
     const r = recipients[i++];
-    window.open(`https://wa.me/${r.phone}?text=${encodeURIComponent(buildBroadcastMessage(r.name))}`, '_blank');
+    window.open(`https://wa.me/${waPhone(r.phone)}?text=${encodeURIComponent(buildBroadcastMessage(r.name))}`, '_blank');
     document.getElementById('broadcastStatus').textContent = `Opening ${i} of ${recipients.length}…`;
     setTimeout(next, 700);
   }
@@ -1285,6 +1285,16 @@ function loyaltyConf() {
   };
 }
 const phoneKey = p => String(p == null ? '' : p).replace(/[^0-9]/g, '');
+// Build a WhatsApp-ready number from a locally-typed one. Owners type Kenyan
+// numbers without the country code (0712…, or 712…); wa.me needs 2547…. So:
+// strip non-digits, then 0XXXXXXXXX -> 254XXXXXXXXX and bare 7…/1… -> 254…;
+// anything already starting 254 (or +254) passes through. Owners never need +254.
+function waPhone(p) {
+  let d = String(p == null ? '' : p).replace(/[^0-9]/g, '');
+  if (d.startsWith('0')) d = '254' + d.slice(1);
+  else if (d.startsWith('7') || d.startsWith('1')) d = '254' + d;
+  return d;
+}
 
 function customerLedger() {
   const map = new Map();
@@ -1382,7 +1392,7 @@ window.clientMessage = phone => {
   const c = customerLedger().find(x => x.phone === phone);
   const first = (c && c.name ? c.name : 'there').split(' ')[0];
   const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Want me to send you what just landed?\n— Venessa, ThriftLux`;
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  window.open(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 document.getElementById('clientsSearch')?.addEventListener('input', e => { clientsQuery = e.target.value.trim(); renderClients(); });
 document.getElementById('clientsSort')?.addEventListener('change', e => { clientsSort = e.target.value; renderClients(); });
@@ -1689,7 +1699,7 @@ window.loyaltyNudge = (phone) => {
   const conf = loyaltyConf();
   const c = customerLedger().find(x => x.phone === phone);
   if (!c) return;
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(loyaltyMessage(c, conf, loyaltyStatus(c, conf)))}`, '_blank');
+  window.open(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(loyaltyMessage(c, conf, loyaltyStatus(c, conf)))}`, '_blank');
 };
 
 window.loyaltyRedeem = async (phone) => {
@@ -1727,7 +1737,7 @@ document.getElementById('loyaltyMsgReadyBtn')?.addEventListener('click', () => {
   if (!ready.length) { showToast('No customers have a reward ready.'); return; }
   showToast(`Opening ${ready.length} WhatsApp tab${ready.length === 1 ? '' : 's'}…`);
   ready.forEach(({ c }, i) => setTimeout(() => {
-    window.open(`https://wa.me/${c.phone}?text=${encodeURIComponent(loyaltyMessage(c, conf, loyaltyStatus(c, conf)))}`, '_blank');
+    window.open(`https://wa.me/${waPhone(c.phone)}?text=${encodeURIComponent(loyaltyMessage(c, conf, loyaltyStatus(c, conf)))}`, '_blank');
   }, i * 700));
 });
 
@@ -1777,7 +1787,7 @@ function closeSaleThanks() { if (saleThanksModal) saleThanksModal.style.display 
 document.getElementById('saleThanksSendBtn')?.addEventListener('click', () => {
   if (!pendingThanks) return;
   const { bag, c, conf, st } = pendingThanks;
-  window.open(`https://wa.me/${c.phone}?text=${encodeURIComponent(thankYouMessage(bag, c, conf, st))}`, '_blank');
+  window.open(`https://wa.me/${waPhone(c.phone)}?text=${encodeURIComponent(thankYouMessage(bag, c, conf, st))}`, '_blank');
   closeSaleThanks();
 });
 document.getElementById('saleThanksDoneBtn')?.addEventListener('click', closeSaleThanks);
@@ -2222,7 +2232,7 @@ window.remindDebt = phone => {
     : `A friendly reminder about the ${n} bags you took from ThriftLux that still have a balance:`;
   const msg = `Hi ${first}, hope you're doing well.\n\n${intro}\n\n${list}\n\n*Total still owing: ${fmtKsh(c.owed)}*\nYou can pay via M-Pesa whenever you're ready. Thank you!`;
   // Phone is already normalized to digits; wa.me needs no '+'.
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  window.open(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 
 // Paid-input live-balance hint (used by buyerPaid + posPaid)
@@ -2462,7 +2472,7 @@ function initNavScrollSpy() {
 let posItemId = '';
 let posPayMethod = 'mpesa';
 let lastPosSale = null;
-function posWaPhone(p) { let d = String(p || '').replace(/[^0-9]/g, ''); if (d.startsWith('0')) d = '254' + d.slice(1); else if (d.startsWith('7') || d.startsWith('1')) d = '254' + d; return d; }
+function posWaPhone(p) { return waPhone(p); }
 function posRenderResults(q) {
   const box = document.getElementById('posItemResults');
   const query = (q || '').toLowerCase();
