@@ -861,6 +861,9 @@ function openBuyerModal(bag) {
   document.getElementById('buyerPaidHint')?.style.setProperty('display', 'none');
   document.getElementById('buyerPaidNone')?.classList.remove('active');
   const bagPrice = Number(bag.salePrice && bag.salePrice < bag.price ? bag.salePrice : bag.price) || 0;
+  // Pre-fill the editable selling-price field — owner can override it for bargaining.
+  const priceInput = document.getElementById('buyerPrice');
+  if (priceInput) priceInput.value = bagPrice || '';
   document.getElementById('buyerModalTitle').textContent = `Mark as sold: ${bag.name}` + (bagPrice ? ` · ${fmtKsh(bagPrice)}` : '');
   buyerModal.style.display = 'flex';
   buyerName.focus();
@@ -886,8 +889,12 @@ async function commitSold(withBuyer) {
       const b = bags.find(x => x.id === targetId);
       if (!b) throw new Error('Bag no longer exists — refresh admin');
       b.sold = true;
-      // Record what it actually sold for: the sale price if it was on sale, else the regular price.
-      const paid = (b.salePrice > 0 && b.salePrice < b.price) ? b.salePrice : (Number(b.price) || 0);
+      // Selling price: prefer the override the owner typed into the modal (for
+      // bargaining). Fall back to the catalog's sale-price-or-regular-price.
+      const catalogPrice = (b.salePrice > 0 && b.salePrice < b.price) ? b.salePrice : (Number(b.price) || 0);
+      const priceRaw = (document.getElementById('buyerPrice')?.value || '').trim();
+      const overridden = priceRaw !== '' && !isNaN(parseInt(priceRaw, 10));
+      const paid = overridden ? Math.max(0, parseInt(priceRaw, 10)) : catalogPrice;
       // Owed feature: capture the cash actually taken at sale time. Blank = paid
       // in full (don't write amountPaid so historical sales stay paid-in-full).
       const paidRaw = (document.getElementById('buyerPaid')?.value || '').trim();
