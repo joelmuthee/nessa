@@ -381,6 +381,16 @@ function relTime(iso) {
   if (d < 14) return d + 'd ago';
   return new Date(iso).toLocaleDateString('en-KE');
 }
+// Short readable date, e.g. "6 Jun 2026". Used by the Owed dashboard + reminder.
+// (The Owed feature was ported referencing this helper but it was never carried
+// over, so renderOwed threw "fmtDate is not defined" and the dashboard rendered
+// blank — no rows, no Remind button — even when money was owed.)
+function fmtDate(iso) {
+  if (!iso) return '';
+  const dt = new Date(iso);
+  if (isNaN(dt)) return '';
+  return dt.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 // Best-effort "added to the website" timestamp: explicit createdAt, else the IG
 // post date (takenAt; epoch-seconds or ISO), else the millis baked into a manual id.
 // Returns an ISO string, or null if nothing usable.
