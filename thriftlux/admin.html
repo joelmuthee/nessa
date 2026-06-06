@@ -159,6 +159,7 @@
         <div class="stat-label">All-time</div>
         <div class="stat-value" id="statAllRev">Ksh 0</div>
         <div class="stat-sub"><span id="statAllCount">0</span> bags · <span id="statSellThrough">0%</span> sell-through</div>
+        <div class="stat-sub" id="statAllProfitSub" style="display:none;">Profit <strong id="statAllProfit">Ksh 0</strong> <span id="statAllProfitNote" style="opacity:.7;"></span></div>
       </div>
     </section>
     <div class="dash-grid">
@@ -428,6 +429,11 @@
     </div>
 
     <div class="field">
+      <label>Buying price (Ksh) <small style="font-weight:400;color:#999;">optional — what you paid for it. For your profit tracking, never shown to buyers.</small></label>
+      <input id="costInput" type="number" min="0" step="50" placeholder="e.g. 800">
+    </div>
+
+    <div class="field">
       <label>Instagram reel URL <small style="font-weight:400;color:#999;">optional</small></label>
       <input id="reelInput" type="url" placeholder="https://www.instagram.com/reel/...">
     </div>
@@ -667,6 +673,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=20260606suspendlock"></script>
+<script src="admin.js?v=20260606buyprice"></script>
 </body>
 </html>

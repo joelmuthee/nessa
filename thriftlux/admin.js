@@ -352,6 +352,7 @@ const categoryInput = document.getElementById('categoryInput');
 const descInput = document.getElementById('descInput');
 const priceInput = document.getElementById('priceInput');
 const salePriceInput = document.getElementById('salePriceInput');
+const costInput = document.getElementById('costInput');
 const reelInput = document.getElementById('reelInput');
 const soldInput = document.getElementById('soldInput');
 const editingIdField = document.getElementById('editingId');
@@ -512,6 +513,10 @@ async function saveBag() {
     if (salePrice >= price) { showToast('Sale price must be lower than the regular price.'); return; }
   }
 
+  // Buying price (cost): optional, for the owner's profit tracking. Blank/0 = not recorded.
+  const costRaw = costInput.value.trim();
+  const cost = costRaw === '' ? 0 : Math.max(0, parseInt(costRaw, 10) || 0);
+
   setSaving(true);
   try {
     let imagePath = null;
@@ -538,6 +543,7 @@ async function saveBag() {
         if (extraPaths.length) bag.images = extraPaths;
         bag.sold = sold;
         if (salePrice) bag.salePrice = salePrice; else delete bag.salePrice;
+        if (cost) bag.cost = cost; else delete bag.cost;
         if (!sold) delete bag.soldTo;
       });
       showToast('Bag updated and live!');
@@ -553,6 +559,7 @@ async function saveBag() {
           createdAt: new Date().toISOString(),
         };
         if (salePrice) bag.salePrice = salePrice;
+        if (cost) bag.cost = cost;
         bags.unshift(bag);
       });
       showToast('Bag added and live!');
@@ -651,6 +658,7 @@ function resetForm() {
   editingIdField.value = '';
   nameInput.value = ''; descInput.value = ''; priceInput.value = '';
   salePriceInput.value = '';
+  costInput.value = '';
   reelInput.value = ''; setCategoryValue('');
   soldInput.checked = false;
   imageInput.value = ''; imagePreview.innerHTML = ''; stagedImage = null;
@@ -674,6 +682,7 @@ function editBag(id) {
   nameInput.value = bag.name; descInput.value = bag.description || '';
   priceInput.value = bag.price; reelInput.value = bag.reel || bag.instagramUrl || '';
   salePriceInput.value = bag.salePrice || '';
+  costInput.value = bag.cost || '';
   setCategoryValue(bag.category || '');
   soldInput.checked = !!bag.sold;
   stagedImage = null;
@@ -855,10 +864,12 @@ function renderStats() {
   const DAY = 86400000;
   const buckets = { today: 0, week: 0, month: 0, all: 0 };
   const counts  = { today: 0, week: 0, month: 0, all: 0 };
+  let profitAll = 0, costKnown = 0; // profit only counts sold bags with a recorded buying price
   for (const b of bags) {
     if (!isSold(b)) continue;
     const price = salePrice(b);
     buckets.all += price; counts.all++;
+    if (b.cost) { profitAll += price - b.cost; costKnown++; }
     const at = soldAt(b) ? new Date(soldAt(b)).getTime() : null;
     if (!at) continue;
     const age = now - at;
@@ -874,6 +885,17 @@ function renderStats() {
   set('statMonthRev', fmtKsh(buckets.month));   set('statMonthCount', counts.month);
   set('statAllRev',   fmtKsh(buckets.all));     set('statAllCount',   counts.all);
   set('statSellThrough', sellThrough + '%');
+  // Profit subline — only show once at least one sold bag has a buying price recorded
+  const profitSub = document.getElementById('statAllProfitSub');
+  if (profitSub) {
+    if (costKnown > 0) {
+      set('statAllProfit', fmtKsh(profitAll));
+      set('statAllProfitNote', costKnown < counts.all ? `· from ${costKnown}/${counts.all} with cost` : '');
+      profitSub.style.display = '';
+    } else {
+      profitSub.style.display = 'none';
+    }
+  }
 
   // Top categories
   const byCat = {};
@@ -951,7 +973,7 @@ function renderInventory() {
       <td><img src="${b.image}" class="item-img" alt=""></td>
       <td><div style="font-weight:600;line-height:1.3;">${escapeHtml(b.name)}</div><div style="font-size:11px;color:#999;">${escapeHtml(b.id)}</div></td>
       <td>${escapeHtml(b.category || '—')}</td>
-      <td>${fmtKsh(b.price)}</td>
+      <td>${fmtKsh(b.price)}${b.cost ? `<div style="font-size:11px;color:#2e7d32;">cost ${fmtKsh(b.cost)} · ${isSold(b) ? 'profit' : 'margin'} ${fmtKsh((Number(b.soldTo?.salePrice ?? (b.salePrice && b.salePrice < b.price ? b.salePrice : b.price)) || 0) - b.cost)}</div>` : ''}</td>
       <td>${isSold(b) ? '<span class="stock-pill zero">SOLD</span>' : '<span class="stock-pill ok">Available</span>'}</td>
       <td style="font-size:12px;color:#666;">${relTime(b.createdAt)}</td>
       <td><button class="restock-btn" onclick="editBag('${b.id}')">Edit</button></td>
