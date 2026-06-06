@@ -14,6 +14,20 @@ for arg in "$@"; do
 done
 
 if [ $skip_push -eq 0 ]; then
+  # Auto-stamp the ThriftLux admin bundle cache-bust version. admin.html is
+  # served no-cache (see _headers) so it always revalidates; bumping ?v= here is
+  # what makes the freshly-revalidated HTML point at the new admin.js/styles.css.
+  # Done automatically so a forgotten manual bump can't reintroduce the "stale
+  # admin on another phone" bug. Committed on its own so it never tangles with
+  # the user's commit logic below.
+  STAMP="$(date +%Y%m%d%H%M)"
+  sed -i -E "s/(admin\.js\?v=)[^\"']*/\1${STAMP}/; s/(styles\.css\?v=)[^\"']*/\1${STAMP}/" thriftlux/admin.html
+  if [ -n "$(git status --porcelain thriftlux/admin.html)" ]; then
+    git add thriftlux/admin.html
+    git commit -q -m "Deploy: cache-bust ThriftLux admin bundle ($STAMP)"
+    echo "Stamped admin bundle version: ${STAMP}"
+  fi
+
   if [ -n "$(git status --porcelain)" ]; then
     if [ -n "$msg" ]; then
       echo "Staging + committing..."
