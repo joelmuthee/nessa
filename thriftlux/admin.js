@@ -1166,7 +1166,9 @@ function buildBroadcastMessage(firstName) {
     items.forEach(b => { msg += `\n• ${b.name} · ${fmtKsh(b.price)}\n  ${SHARE_BASE}${encodeURIComponent(b.id)}`; });
     msg += '\n\n';
   }
-  msg += `Browse the full shop: ${SHOP_URL}\n\nVenessa, ThriftLux 💛`;
+  msg += `Browse the full shop: ${SHOP_URL}
+
+ThriftLux 💛`;
   return msg;
 }
 function updateBroadcastPreview() {
@@ -1391,7 +1393,9 @@ function renderClients() {
 window.clientMessage = phone => {
   const c = customerLedger().find(x => x.phone === phone);
   const first = (c && c.name ? c.name : 'there').split(' ')[0];
-  const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Browse what just landed here: ${SHOP_URL}\n\nVenessa, ThriftLux 💛`;
+  const msg = `Hi ${first}! Thanks for shopping with ThriftLux. We've got fresh pieces in. Browse what just landed here: ${SHOP_URL}
+
+ThriftLux 💛`;
   window.open(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 document.getElementById('clientsSearch')?.addEventListener('input', e => { clientsQuery = e.target.value.trim(); renderClients(); });
@@ -1572,7 +1576,7 @@ function loyaltyMessage(c, conf, st) {
     const remaining = conf.threshold - st.progress;
     msg += `You've collected ${st.progress} of ${conf.threshold} stamps with ThriftLux. ${remaining} more and ${conf.rewardLabel} is yours 💛`;
   }
-  return msg + `\nVenessa, ThriftLux`;
+  return msg + `\nThriftLux 💛`;
 }
 
 function syncLoyaltyModeUI(mode) {
@@ -1759,7 +1763,7 @@ function thankYouMessage(bag, c, conf, st) {
       msg += `\n\nYou now have ${st.available} stamp${st.available === 1 ? '' : 's'} on your loyalty card. ${remaining} more and ${conf.rewardLabel} is yours.`;
     }
   }
-  return msg + `\nVenessa, ThriftLux`;
+  return msg + `\nThriftLux 💛`;
 }
 
 function openSaleThanks(bag) {
