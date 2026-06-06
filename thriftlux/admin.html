@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#0d0d0d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=202606062336">
+<link rel="stylesheet" href="styles.css?v=202606062342">
 <!-- GHL form submit captcha (enterprise reCAPTCHA v3) -->
 <script src="https://www.google.com/recaptcha/enterprise.js?render=6LeDBFwpAAAAAJe8ux9-imrqZ2ueRsEtdiWoDDpX" async defer></script>
 </head>
@@ -118,6 +118,7 @@
           <div id="posCustomerFields" style="margin-top:4px;">
             <input id="posBuyerName" type="text" placeholder="Customer name (optional)">
             <input id="posBuyerPhone" type="tel" placeholder="Phone e.g. 0712345678 (optional)" style="margin-top:8px;">
+            <input id="posBuyerNote" type="text" placeholder="Note (optional) — e.g. drop-off, paying later" style="margin-top:8px;">
           </div>
         </div>
         <div class="admin-actions">
@@ -644,7 +645,7 @@
 <!-- ADD CLIENT MODAL -->
 <div id="addClientModal" class="modal" style="display:none;">
   <div class="modal-card">
-    <h3>Add a client</h3>
+    <h3 id="addClientTitle">Add a client</h3>
     <p class="sub">Save a contact — a DM enquiry, a walk-in, a referral. Optionally pick the bag they bought and it's marked sold to them.</p>
     <div class="field">
       <label>Name</label>
@@ -654,7 +655,7 @@
       <label>Phone <small style="font-weight:400;color:#999;">— include the leading 0 or 254</small></label>
       <input id="addClientPhone" type="tel" placeholder="0712345678">
     </div>
-    <div class="field">
+    <div class="field" id="addClientBagField">
       <label>Bag bought <small style="font-weight:400;color:#999;">— optional. Type to find an available bag; pick it to mark it sold to this client.</small></label>
       <input id="addClientItemSearch" type="search" placeholder="Start typing a bag name…" autocomplete="off">
       <div id="addClientItemResults" class="client-item-results" style="display:none;"></div>
@@ -699,6 +700,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=202606062336"></script>
+<script src="admin.js?v=202606062342"></script>
 </body>
 </html>
