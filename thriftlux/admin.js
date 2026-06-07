@@ -1868,6 +1868,116 @@ document.getElementById('bulkCatSaveBtn').addEventListener('click', async () => 
   } catch(err) { showToast('Sync failed: ' + err.message); }
 });
 
+// ---- Bulk SELL to one customer (type details once) ----
+// Thrift model: each selected available bag becomes its own sale, all sharing
+// the same buyer + payment method. An optional part-payment for the whole lot
+// is allocated across the bags in order (oldest-first), so the Owed ledger works.
+function bulkSellableSelected() { return bags.filter(b => bulkSelected.has(b.id) && !b.sold); }
+function bagCatalogPrice(b) { return (b.salePrice > 0 && b.salePrice < b.price) ? b.salePrice : (Number(b.price) || 0); }
+let bulkSellTotalAmt = 0;
+window.bulkSell = () => {
+  const list = bulkSellableSelected();
+  if (!list.length) { showToast('Select at least one available bag to sell.'); return; }
+  bulkSellTotalAmt = list.reduce((s, b) => s + bagCatalogPrice(b), 0);
+  document.getElementById('bulkSellTitle').textContent = `Sell ${list.length} bag${list.length === 1 ? '' : 's'} to one customer`;
+  document.getElementById('bulkSellItems').innerHTML = list.map(b => {
+    const p = bagCatalogPrice(b);
+    return `<span class="client-item">${escapeHtml(b.name)}${p ? ' · ' + fmtKsh(p) : ''}</span>`;
+  }).join('');
+  document.getElementById('bulkSellTotal').textContent = `Total: ${fmtKsh(bulkSellTotalAmt)} · ${list.length} bag${list.length === 1 ? '' : 's'}`;
+  document.getElementById('bulkSellName').value = '';
+  document.getElementById('bulkSellPhone').value = '';
+  document.getElementById('bulkSellNotes').value = '';
+  const paid = document.getElementById('bulkSellPaid');
+  paid.value = ''; paid.placeholder = 'Paid in full';
+  document.getElementById('bulkSellPaidHint').style.display = 'none';
+  document.getElementById('bulkSellPaidNone').classList.remove('active');
+  document.querySelectorAll('#bulkSellPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
+  document.getElementById('bulkSellModal').style.display = 'flex';
+  document.getElementById('bulkSellName').focus();
+};
+function closeBulkSell() { document.getElementById('bulkSellModal').style.display = 'none'; }
+function updateBulkSellHint() {
+  const raw = (document.getElementById('bulkSellPaid').value || '').trim();
+  document.getElementById('bulkSellPaidNone').classList.toggle('active', raw === '0');
+  const hint = document.getElementById('bulkSellPaidHint');
+  if (raw === '') { hint.style.display = 'none'; return; }
+  const bal = bulkSellTotalAmt - Math.min(bulkSellTotalAmt, Math.max(0, parseInt(raw, 10) || 0));
+  hint.style.display = bal > 0 ? '' : 'none';
+  if (bal > 0) hint.textContent = `Balance owing: ${fmtKsh(bal)}`;
+}
+async function commitBulkSold(withBuyer) {
+  const initial = bulkSellableSelected();
+  if (!initial.length) { closeBulkSell(); return; }
+  const ids = new Set(initial.map(b => b.id));
+  const payMethod = document.querySelector('#bulkSellPay .pos-pay-btn.active')?.dataset.pay || 'mpesa';
+  let buyerInfo = null;
+  if (withBuyer) {
+    const name = document.getElementById('bulkSellName').value.trim();
+    const phone = document.getElementById('bulkSellPhone').value.trim().replace(/[^0-9+]/g, '');
+    const notes = document.getElementById('bulkSellNotes').value.trim();
+    if (!name && !phone) { showToast('Add a name or phone, or hit Skip.'); return; }
+    buyerInfo = { name, phone, notes };
+  }
+  const paidRaw = (document.getElementById('bulkSellPaid').value || '').trim();
+  const hasPartial = paidRaw !== '';
+  let remaining = hasPartial ? Math.max(0, parseInt(paidRaw, 10) || 0) : Infinity;
+  closeBulkSell();
+  const soldAt = new Date().toISOString();
+  let soldList = [];
+  try {
+    await apiMutateAndPublish(() => {
+      remaining = hasPartial ? Math.max(0, parseInt(paidRaw, 10) || 0) : Infinity; // reset per attempt
+      soldList = [];
+      const ordered = bags.filter(b => ids.has(b.id) && !b.sold); // re-resolve against fresh data
+      for (const b of ordered) {
+        const price = bagCatalogPrice(b);
+        const soldTo = withBuyer
+          ? { ...buyerInfo, soldAt, salePrice: price, paymentMethod: payMethod }
+          : { soldAt, salePrice: price, paymentMethod: payMethod };
+        if (hasPartial) {
+          const pay = Math.min(remaining, price);
+          if (pay < price) soldTo.amountPaid = pay; // omit when fully paid → stays paid-in-full
+          remaining = Math.max(0, remaining - pay);
+        }
+        b.sold = true; b.soldTo = soldTo; delete b.salePrice;
+        soldList.push(b);
+      }
+    });
+    const total = soldList.reduce((s, b) => s + (Number(b.soldTo.salePrice) || 0), 0);
+    bulkSelected.clear(); refreshBulkBar(); renderAll();
+    const who = withBuyer && buyerInfo.name ? ' to ' + buyerInfo.name : '';
+    const owed = hasPartial ? Math.max(0, total - Math.max(0, parseInt(paidRaw, 10) || 0)) : 0;
+    showToast(`Sold ${soldList.length} bag${soldList.length === 1 ? '' : 's'}${who} · ${fmtKsh(total)}${owed > 0 ? ` · ${fmtKsh(owed)} owed` : ''}`);
+    if (withBuyer && buyerInfo.phone) sendBuyerToGHLBundle(buyerInfo, soldList, total);
+  } catch (err) { showToast('Sync failed: ' + err.message); }
+}
+async function sendBuyerToGHLBundle(buyer, list, total) {
+  try {
+    const captchaV3 = await getCaptchaToken();
+    await fetch(`${API_BASE}/api/buyer`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: buyer.name, phone: buyer.phone, notes: buyer.notes,
+        bag_name: `${list.length} bags: ${list.map(b => b.name).join(', ')}`.slice(0, 300),
+        bag_price: total, captchaV3,
+      }),
+    });
+  } catch (err) { console.warn('GHL bundle submit failed (non-blocking):', err); }
+}
+document.getElementById('bulkSellSaveBtn')?.addEventListener('click', () => commitBulkSold(true));
+document.getElementById('bulkSellSkipBtn')?.addEventListener('click', () => commitBulkSold(false));
+document.getElementById('bulkSellCancelBtn')?.addEventListener('click', closeBulkSell);
+document.getElementById('bulkSellModal')?.addEventListener('click', e => { if (e.target.id === 'bulkSellModal') closeBulkSell(); });
+document.querySelectorAll('#bulkSellPay .pos-pay-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('#bulkSellPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b === btn));
+}));
+document.getElementById('bulkSellPaid')?.addEventListener('input', updateBulkSellHint);
+document.getElementById('bulkSellPaidNone')?.addEventListener('click', () => {
+  document.getElementById('bulkSellPaid').value = '0';
+  updateBulkSellHint();
+});
+
 // ---- Bulk sale ----
 // Round to the nearest 50 KSh so sale prices look clean (e.g. 2450 -> 2450,
 // 2333 -> 2350). Nairobi pricing is always in 50/100 increments.
