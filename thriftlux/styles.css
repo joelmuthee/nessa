@@ -709,6 +709,26 @@ img { max-width: 100%; display: block; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .modal-card { background: #fff; border-radius: 14px; padding: 28px; max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .modal-card h3 { font-family: var(--serif); font-size: 24px; font-weight: 500; margin: 0 0 4px; }
+/* Mobile: modals become full-screen sheets so tall sale modals fit, and the
+   action buttons stay reachable via a sticky footer. Uses dvh/svh (NOT vh) so
+   the card never exceeds the visible area when the browser URL bar is showing
+   — that was the "popup doesn't fit / can't reach Save" bug (2026-06-07). */
+@media (max-width: 600px) {
+  .modal { padding: 0; align-items: stretch; }
+  .modal-card {
+    max-width: none; border-radius: 0;
+    height: 100svh; height: 100dvh;
+    max-height: 100svh; max-height: 100dvh;
+    padding: 16px 16px 0;
+  }
+  .modal-card h3 { font-size: 19px; line-height: 1.18; }
+  .modal-card .admin-actions {
+    position: sticky; bottom: 0; background: #fff; z-index: 2;
+    margin: 14px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -7px 14px -9px rgba(0,0,0,0.25);
+  }
+  .bulk-bar { flex-wrap: wrap; }
+}
 .sync-panel { background: #fff; border: 1.5px solid #d4c5b0; border-radius: 14px; padding: 22px 24px; margin-bottom: 24px; }
 .sync-panel h3 { font-family: var(--serif); font-size: 20px; font-weight: 500; margin: 0 0 8px; }
 .token-status { font-size: 13px; font-weight: 600; margin: 0 0 4px; }

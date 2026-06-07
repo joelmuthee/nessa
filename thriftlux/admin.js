@@ -841,6 +841,9 @@ async function toggleSold(id) {
     } catch(err) { showToast('Sync failed: ' + err.message); }
     return;
   }
+  // If she's multi-selected bags and taps Sell on one of them, she means the
+  // batch — route to the bulk "sell to one customer" flow instead of single.
+  if (bulkSelected.size >= 2 && bulkSelected.has(id)) { bulkSell(); return; }
   openBuyerModal(bag);
 }
 
