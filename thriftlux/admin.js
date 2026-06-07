@@ -1896,8 +1896,11 @@ window.bulkSell = () => {
   document.getElementById('bulkSellPaidHint').style.display = 'none';
   document.getElementById('bulkSellPaidNone').classList.remove('active');
   document.querySelectorAll('#bulkSellPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
+  const cs = document.getElementById('bulkSellCustSearch');
+  if (cs) cs.value = '';
+  const cr = document.getElementById('bulkSellCustResults');
+  if (cr) { cr.style.display = 'none'; cr.innerHTML = ''; }
   document.getElementById('bulkSellModal').style.display = 'flex';
-  document.getElementById('bulkSellName').focus();
 };
 function closeBulkSell() { document.getElementById('bulkSellModal').style.display = 'none'; }
 function updateBulkSellHint() {
@@ -1979,6 +1982,37 @@ document.getElementById('bulkSellPaid')?.addEventListener('input', updateBulkSel
 document.getElementById('bulkSellPaidNone')?.addEventListener('click', () => {
   document.getElementById('bulkSellPaid').value = '0';
   updateBulkSellHint();
+});
+// Existing-customer picker: search the saved-customer ledger, tap to fill name+phone.
+function renderBulkSellCustResults(q) {
+  const box = document.getElementById('bulkSellCustResults');
+  if (!box) return;
+  const term = (q || '').trim().toLowerCase();
+  if (!term) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const digits = term.replace(/[^0-9+]/g, '');
+  const matches = customerLedger()
+    .filter(c => (c.name || '').toLowerCase().includes(term) || (digits && (c.phone || '').includes(digits)))
+    .sort((a, b) => b.lastAt - a.lastAt)
+    .slice(0, 8);
+  if (!matches.length) {
+    box.innerHTML = '<div class="client-item-empty">No saved customer matches. Type the details below to add a new one.</div>';
+    box.style.display = ''; return;
+  }
+  box.innerHTML = matches.map(c => {
+    const meta = `${escapeHtml(c.phone || '')}${c.purchases.length ? ` · ${c.purchases.length} bought` : ''}`;
+    return `<button type="button" class="client-item-opt" data-name="${escapeHtml(c.name || '')}" data-phone="${escapeHtml(c.phone || '')}">${escapeHtml(c.name || '(no name)')}<span>${meta}</span></button>`;
+  }).join('');
+  box.style.display = '';
+}
+document.getElementById('bulkSellCustSearch')?.addEventListener('input', e => renderBulkSellCustResults(e.target.value));
+document.getElementById('bulkSellCustResults')?.addEventListener('click', e => {
+  const opt = e.target.closest('.client-item-opt');
+  if (!opt) return;
+  document.getElementById('bulkSellName').value = opt.dataset.name || '';
+  document.getElementById('bulkSellPhone').value = opt.dataset.phone || '';
+  document.getElementById('bulkSellCustSearch').value = opt.dataset.name || opt.dataset.phone || '';
+  document.getElementById('bulkSellCustResults').style.display = 'none';
+  showToast('Customer selected — edit below if needed.');
 });
 
 // ---- Bulk sale ----
