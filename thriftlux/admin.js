@@ -1385,7 +1385,10 @@ function renderClients() {
                      : (c.addedAt ? `added ${relTime(c.addedAt)}` : 'no purchases yet');
     const manualTag = c.manualId ? '<span class="client-tag">Added manually</span>' : '';
     const noteLine = c.note ? `<div class="client-note">${escapeHtml(c.note)}</div>` : '';
-    const removeBtn = c.manualId ? `<button class="btn-admin danger" onclick="removeClient('${c.manualId}')">Remove</button>` : '';
+    // Remove is only for a manually-added contact that has NOT bought anything
+    // (e.g. added by mistake). Once a client has any purchase they're real sales
+    // history — no one-tap remove. Their sales would have to be undone in Sales.
+    const removeBtn = (c.manualId && !has) ? `<button class="btn-admin danger" onclick="removeClient('${c.manualId}')">Remove</button>` : '';
     return `
       <div class="client-row">
         <div class="client-row-main">
