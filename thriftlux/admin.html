@@ -508,6 +508,11 @@
       <input id="buyerPrice" type="number" min="0" step="50">
     </div>
     <div class="field">
+      <label>Existing customer <small style="font-weight:400;color:#999;">search a saved customer, or just type a new one below</small></label>
+      <input id="buyerCustSearch" type="search" placeholder="Search saved customers by name or phone…" autocomplete="off">
+      <div id="buyerCustResults" class="client-item-results" style="display:none;"></div>
+    </div>
+    <div class="field">
       <label>Buyer's name</label>
       <input id="buyerName" type="text" placeholder="e.g. Jane Wanjiru">
     </div>
@@ -755,6 +760,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=20260607bulkcust"></script>
+<script src="admin.js?v=20260607custpick"></script>
 </body>
 </html>

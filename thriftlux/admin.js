@@ -857,6 +857,8 @@ let pendingBag = null;
 function openBuyerModal(bag) {
   pendingBag = bag;
   buyerName.value = ''; buyerPhone.value = ''; buyerNotes.value = '';
+  const bcs = document.getElementById('buyerCustSearch'); if (bcs) bcs.value = '';
+  const bcr = document.getElementById('buyerCustResults'); if (bcr) { bcr.style.display = 'none'; bcr.innerHTML = ''; }
   document.querySelectorAll('#saleModalPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
   // Reset amount-paid input (Owed feature) — default to paid in full
   const paid = document.getElementById('buyerPaid');
@@ -1983,37 +1985,40 @@ document.getElementById('bulkSellPaidNone')?.addEventListener('click', () => {
   document.getElementById('bulkSellPaid').value = '0';
   updateBulkSellHint();
 });
-// Existing-customer picker: search the saved-customer ledger, tap to fill name+phone.
-function renderBulkSellCustResults(q) {
-  const box = document.getElementById('bulkSellCustResults');
-  if (!box) return;
-  const term = (q || '').trim().toLowerCase();
-  if (!term) { box.style.display = 'none'; box.innerHTML = ''; return; }
-  const digits = term.replace(/[^0-9+]/g, '');
-  const matches = customerLedger()
-    .filter(c => (c.name || '').toLowerCase().includes(term) || (digits && (c.phone || '').includes(digits)))
-    .sort((a, b) => b.lastAt - a.lastAt)
-    .slice(0, 8);
-  if (!matches.length) {
-    box.innerHTML = '<div class="client-item-empty">No saved customer matches. Type the details below to add a new one.</div>';
-    box.style.display = ''; return;
-  }
-  box.innerHTML = matches.map(c => {
-    const meta = `${escapeHtml(c.phone || '')}${c.purchases.length ? ` · ${c.purchases.length} bought` : ''}`;
-    return `<button type="button" class="client-item-opt" data-name="${escapeHtml(c.name || '')}" data-phone="${escapeHtml(c.phone || '')}">${escapeHtml(c.name || '(no name)')}<span>${meta}</span></button>`;
-  }).join('');
-  box.style.display = '';
+// Existing-customer picker: search the saved-customer ledger, tap to fill
+// name+phone. Shared by the bulk-sell and single-sell modals.
+function wireCustomerPicker({ searchId, resultsId, nameId, phoneId }) {
+  const search = document.getElementById(searchId);
+  const box = document.getElementById(resultsId);
+  if (!search || !box) return;
+  search.addEventListener('input', () => {
+    const term = search.value.trim().toLowerCase();
+    if (!term) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    const digits = term.replace(/[^0-9+]/g, '');
+    const matches = customerLedger()
+      .filter(c => (c.name || '').toLowerCase().includes(term) || (digits && (c.phone || '').includes(digits)))
+      .sort((a, b) => b.lastAt - a.lastAt)
+      .slice(0, 8);
+    box.innerHTML = matches.length
+      ? matches.map(c => {
+          const meta = `${escapeHtml(c.phone || '')}${c.purchases.length ? ` · ${c.purchases.length} bought` : ''}`;
+          return `<button type="button" class="client-item-opt" data-name="${escapeHtml(c.name || '')}" data-phone="${escapeHtml(c.phone || '')}">${escapeHtml(c.name || '(no name)')}<span>${meta}</span></button>`;
+        }).join('')
+      : '<div class="client-item-empty">No saved customer matches. Type the details below to add a new one.</div>';
+    box.style.display = '';
+  });
+  box.addEventListener('click', e => {
+    const opt = e.target.closest('.client-item-opt');
+    if (!opt) return;
+    document.getElementById(nameId).value = opt.dataset.name || '';
+    document.getElementById(phoneId).value = opt.dataset.phone || '';
+    search.value = opt.dataset.name || opt.dataset.phone || '';
+    box.style.display = 'none';
+    showToast('Customer selected — edit if needed.');
+  });
 }
-document.getElementById('bulkSellCustSearch')?.addEventListener('input', e => renderBulkSellCustResults(e.target.value));
-document.getElementById('bulkSellCustResults')?.addEventListener('click', e => {
-  const opt = e.target.closest('.client-item-opt');
-  if (!opt) return;
-  document.getElementById('bulkSellName').value = opt.dataset.name || '';
-  document.getElementById('bulkSellPhone').value = opt.dataset.phone || '';
-  document.getElementById('bulkSellCustSearch').value = opt.dataset.name || opt.dataset.phone || '';
-  document.getElementById('bulkSellCustResults').style.display = 'none';
-  showToast('Customer selected — edit below if needed.');
-});
+wireCustomerPicker({ searchId: 'bulkSellCustSearch', resultsId: 'bulkSellCustResults', nameId: 'bulkSellName', phoneId: 'bulkSellPhone' });
+wireCustomerPicker({ searchId: 'buyerCustSearch', resultsId: 'buyerCustResults', nameId: 'buyerName', phoneId: 'buyerPhone' });
 
 // ---- Bulk sale ----
 // Round to the nearest 50 KSh so sale prices look clean (e.g. 2450 -> 2450,
