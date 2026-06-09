@@ -224,103 +224,6 @@ function showToast(msg) {
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2800);
 }
-// ====== TRASH (device-local restore bin) ======
-// Deleted bags are stashed in localStorage so they can be restored. Kept off the
-// server so the public catalogue never sees them; image blobs stay in KV, so a
-// restored bag's image URL still resolves. Stored per device only.
-const TRASH_KEY = 'thriftlux_trash';
-const TRASH_CAP = 50;
-
-function getTrash() {
-  try { return JSON.parse(localStorage.getItem(TRASH_KEY) || '[]'); } catch { return []; }
-}
-function setTrash(arr) { localStorage.setItem(TRASH_KEY, JSON.stringify(arr.slice(0, TRASH_CAP))); }
-function trashPush(items) {
-  // items: [{ item, index }] — index = position in bags at delete time, for in-place restore
-  const now = new Date().toISOString();
-  const entries = items.filter(x => x && x.item).map(({ item, index }) => ({ item, index, deletedAt: now }));
-  setTrash([...entries, ...getTrash()]);
-}
-
-function trashTimeAgo(iso) {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s / 60); if (m < 60) return `${m} min ago`;
-  const h = Math.floor(m / 60); if (h < 24) return `${h} hr ago`;
-  const d = Math.floor(h / 24); return `${d} day${d === 1 ? '' : 's'} ago`;
-}
-
-function renderTrash() {
-  const list = document.getElementById('trashList');
-  if (!list) return;
-  const trash = getTrash();
-  const countEl = document.getElementById('trashCount');
-  const navCount = document.getElementById('navTrashCount');
-  if (countEl) countEl.textContent = trash.length;
-  if (navCount) navCount.textContent = trash.length;
-  const emptyBtn = document.getElementById('emptyTrashBtn');
-  if (emptyBtn) emptyBtn.style.display = trash.length ? '' : 'none';
-  if (!trash.length) {
-    list.innerHTML = '<p style="color:var(--ink-faint);font-size:13px;padding:10px 2px;">Trash is empty. Deleted bags land here so you can restore them. Stored on this device only.</p>';
-    return;
-  }
-  list.innerHTML = trash.map(({ item, deletedAt }) => `
-    <div class="admin-card">
-      <img src="${item.image}" alt="${escapeHtml(item.name)}">
-      <div class="admin-card-body">
-        <div class="admin-card-name">${escapeHtml(item.name)}</div>
-        <div class="admin-card-stock">${escapeHtml(item.category || 'Uncategorised')} · deleted ${trashTimeAgo(deletedAt)}</div>
-        <div class="admin-card-actions">
-          <button onclick="restoreItem('${item.id}')">Restore</button>
-          <button class="danger" onclick="deleteForever('${item.id}')">Delete forever</button>
-        </div>
-      </div>
-    </div>`).join('');
-}
-
-async function restoreItem(id) {
-  const trash = getTrash();
-  const idx = trash.findIndex(t => t.item && t.item.id === id);
-  if (idx === -1) return;
-  if (bags.some(b => b.id === id)) {
-    trash.splice(idx, 1); setTrash(trash); renderTrash();
-    showToast('Already in the catalogue — cleared from Trash.');
-    return;
-  }
-  const entry = trash[idx];
-  try {
-    await apiMutateAndPublish(() => {
-      if (bags.some(b => b.id === id)) return; // already back in catalogue
-      const at = Math.min(typeof entry.index === 'number' ? entry.index : bags.length, bags.length);
-      bags.splice(at, 0, entry.item);
-    });
-    trash.splice(idx, 1); setTrash(trash);
-    renderAll();
-    renderTrash();
-    showToast('Bag restored to the catalogue.');
-  } catch (err) {
-    showToast('Restore failed: ' + err.message);
-  }
-}
-
-async function deleteForever(id) {
-  if (!await confirmAction('Permanently remove this from Trash? It cannot be restored after this.', 'Delete forever')) return;
-  setTrash(getTrash().filter(t => !(t.item && t.item.id === id)));
-  renderTrash();
-  showToast('Removed from Trash.');
-}
-
-async function emptyTrash() {
-  const n = getTrash().length;
-  if (!n) return;
-  if (!await confirmAction(`Empty Trash? ${n} bag${n === 1 ? '' : 's'} will be gone for good.`, 'Empty trash')) return;
-  setTrash([]);
-  renderTrash();
-  showToast('Trash emptied.');
-}
-window.restoreItem = restoreItem;
-window.deleteForever = deleteForever;
-window.emptyTrash = emptyTrash;
 
 function confirmAction(message, okLabel = 'Confirm') {
   return new Promise(resolve => {
@@ -812,7 +715,7 @@ function renderExtrasForEdit(list) {
 }
 
 async function deleteBag(id) {
-  if (!await confirmAction('Delete this bag? You can restore it from Trash below.', 'Delete')) return;
+  if (!await confirmAction('Delete this bag? This cannot be undone.', 'Delete')) return;
   let removed = null, removedIdx = -1;
   try {
     await apiMutateAndPublish(() => {
@@ -820,10 +723,8 @@ async function deleteBag(id) {
       removed = removedIdx === -1 ? null : bags[removedIdx];
       bags = bags.filter(b => b.id !== id);
     });
-    if (removed) trashPush([{ item: removed, index: removedIdx }]);
     renderAll();
-    renderTrash();
-    showToast('Bag deleted — restore it from Trash.');
+    showToast('Bag deleted.');
   } catch(err) { showToast('Sync failed: ' + err.message); }
 }
 
@@ -1822,7 +1723,7 @@ window.bulkSelectAll = () => { bags.forEach(b => bulkSelected.add(b.id)); refres
 window.bulkClear = () => { bulkSelected.clear(); refreshBulkBar(); renderList(); };
 window.bulkDelete = async () => {
   if (!bulkSelected.size) return;
-  if (!await confirmAction(`Delete ${bulkSelected.size} bags? You can restore them from Trash below.`, 'Delete')) return;
+  if (!await confirmAction(`Delete ${bulkSelected.size} bags? This cannot be undone.`, 'Delete')) return;
   const ids = new Set(bulkSelected);
   let removed = [];
   try {
@@ -1831,10 +1732,8 @@ window.bulkDelete = async () => {
       bags.forEach((b, i) => { if (ids.has(b.id)) removed.push({ item: b, index: i }); });
       bags = bags.filter(b => !ids.has(b.id));
     });
-    trashPush(removed);
     bulkSelected.clear();
-    renderAll(); renderTrash();
-    showToast('Deleted — restore from Trash.');
+    renderAll();    showToast('Deleted.');
   } catch(err) { showToast('Sync failed: ' + err.message); }
 };
 window.bulkMarkSold = async () => {
@@ -2566,7 +2465,6 @@ async function init() {
   await loadData();
   renderSuspendedBanner();
   renderAll();
-  renderTrash();
   initNavScrollSpy();
   initAutoRefresh();
 }
@@ -2592,7 +2490,7 @@ async function autoRefresh() {
   try {
     const before = dataRev;
     await loadData();
-    if (dataRev !== before) { renderAll(); renderTrash(); } // only re-render if data actually changed
+    if (dataRev !== before) { renderAll(); } // only re-render if data actually changed
   } catch (_) { /* offline / transient — ignore, try again on next focus */ }
   finally { _autoRefreshing = false; }
 }
