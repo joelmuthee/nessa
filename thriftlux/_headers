@@ -1,0 +1,18 @@
+# Cloudflare Pages headers for the standalone `thriftlux` project (thriftlux.pages.dev).
+#
+# The ThriftLux admin lives at /admin here. By default CF Pages sends no
+# Cache-Control on HTML, so browsers — especially the WhatsApp/Instagram in-app
+# webviews owners use — heuristically cache a stale admin.html for hours. After a
+# redeploy the owner then sees an old admin (missing newly-added sections like the
+# Sell-in-store receipt panel) until that cache expires. `no-cache` forces a
+# revalidation on every load (304 when unchanged, fresh when redeployed) so admin
+# changes show up immediately. Versioned assets (admin.js?v=, styles.css?v=) keep
+# their long cache — only the HTML entry points need this.
+#
+# NOTE: CF only processes the `_headers` at the DEPLOY ROOT. This file is the root
+# for the `thriftlux` project. The nessa project (which serves the same admin at
+# /thriftlux/admin) is covered by its own root _headers; this file is ignored there.
+/admin
+  Cache-Control: no-cache, must-revalidate
+/admin.html
+  Cache-Control: no-cache, must-revalidate
