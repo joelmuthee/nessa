@@ -441,6 +441,8 @@ document.getElementById('igQuickBtn').addEventListener('click', async () => {
       if (parsed.sold) soldInput.checked = true;
     }
     if (data.postUrl) reelInput.value = data.postUrl;
+    const manualEntry = document.getElementById('manualEntry');
+    if (manualEntry) manualEntry.open = true;  // reveal the auto-filled fields
     status.className = 'ig-quick-status ok';
     status.textContent = '✓ Loaded. Edit anything above, then click Save bag.';
   } catch(e) {
@@ -664,6 +666,8 @@ function resetForm() {
   const manualDiv = document.getElementById('manualEntryDivider');
   if (igPanel) igPanel.style.display = '';
   if (manualDiv) manualDiv.style.display = '';
+  const manualEntry = document.getElementById('manualEntry');
+  if (manualEntry) manualEntry.open = false;
 }
 
 function editBag(id) {
@@ -693,6 +697,8 @@ function editBag(id) {
   const manualDiv = document.getElementById('manualEntryDivider');
   if (igPanel) igPanel.style.display = 'none';
   if (manualDiv) manualDiv.style.display = 'none';
+  const manualEntry = document.getElementById('manualEntry');
+  if (manualEntry) manualEntry.open = true;  // edit hides the toggle, so .open is what reveals the fields
   document.getElementById('formTitle').scrollIntoView({ behavior: 'auto', block: 'start' });
 }
 
@@ -2670,5 +2676,21 @@ document.getElementById('posRecordBtn')?.addEventListener('click', recordPosSale
 document.getElementById('posCancelBtn')?.addEventListener('click', posReset);
 document.getElementById('posNewSaleBtn')?.addEventListener('click', posReset);
 document.getElementById('posPrintReceiptBtn')?.addEventListener('click', posPrintReceipt);
+
+// ===== Mobile-safe collapsible toggles =====
+// Drive each <details> from JS (preventDefault + flip .open). A <summary> with
+// display:flex silently breaks native <details> toggling in Safari / mobile
+// WebKit — JS ownership sidesteps it entirely. See CATALOG-STANDARDS.md.
+(function () {
+  const manualEntry = document.getElementById('manualEntry');
+  const manualSummary = document.getElementById('manualEntryDivider');
+  if (manualSummary) manualSummary.addEventListener('click', (e) => { e.preventDefault(); if (manualEntry) manualEntry.open = !manualEntry.open; });
+  document.querySelector('.admin-nav a[href="#addForm"]')?.addEventListener('click', () => { if (manualEntry) manualEntry.open = true; });
+
+  const broadcastCollapse = document.getElementById('broadcastCollapse');
+  const broadcastSummary = broadcastCollapse?.querySelector('summary.dash-summary');
+  if (broadcastSummary) broadcastSummary.addEventListener('click', (e) => { e.preventDefault(); broadcastCollapse.open = !broadcastCollapse.open; });
+  document.querySelector('.admin-nav a[href="#broadcastDash"]')?.addEventListener('click', () => { if (broadcastCollapse) broadcastCollapse.open = true; });
+})();
 
 checkAuth();
