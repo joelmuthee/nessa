@@ -464,10 +464,13 @@ const coerce = (c) => {
 // review step: fetch the feed, AI-classify (heuristic + vision + text), parse
 // name/category from the caption, download the cover image into KV, prepend to
 // the catalog in the THRIFT bag shape (sold:false, reel, no stock object).
+// Runs twice a day (afternoon + evening waves — owners post during the day,
+// so a morning-only sync would mostly catch yesterday's posts).
 // 3k+ tier feature (owner directive 2026-06-12). Cap 20/run on Workers Paid.
 // Kill switch: KV key `autosync` = {"enabled":false}. Suspended shops skip.
-// Stagger slot: 06:20 UTC (Iman holds 06:00 [disabled], Ryker 06:10) — IG
-// rate-limits by source IP and the fleet shares Cloudflare egress IPs.
+// Stagger offset: :20 past the wave hour (Iman holds :00 [disabled],
+// Ryker :10) — IG rate-limits by source IP and the fleet shares Cloudflare
+// egress IPs.
 const IG_AUTOSYNC_USER_ID = "27867036937"; // @thriftlux.ke
 const API_ORIGIN = "https://thriftlux-api.stawisystems.workers.dev";
 const AUTOSYNC_MAX_ITEMS = 20;
@@ -576,8 +579,8 @@ async function runIgAutoSync(env) {
 }
 
 export default {
-  // Cloudflare Cron Trigger (see wrangler.toml [triggers]).
-  //   "20 6 * * *" = 09:20 EAT → IG auto-sync (new posts add themselves)
+  // Cloudflare Cron Triggers (see wrangler.toml [triggers]) — both waves run
+  // the IG auto-sync: 10:20 UTC (13:20 EAT) and 16:20 UTC (19:20 EAT).
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runIgAutoSync(env));
   },
