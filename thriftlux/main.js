@@ -152,7 +152,12 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
         break;
       case 'price-asc': out.sort((a, b) => effectivePrice(a) - effectivePrice(b)); break;
       case 'price-desc': out.sort((a, b) => effectivePrice(b) - effectivePrice(a)); break;
-      // 'featured' = original order
+      // 'featured' = original order, except boosted bags float to the top
+      // (admin "Boost to top" sets boostedAt; sold bags never float).
+      default: {
+        const boostRank = b => (!b.sold && b.boostedAt) ? new Date(b.boostedAt).getTime() : 0;
+        out.sort((a, b) => boostRank(b) - boostRank(a)); // stable: unboosted keep original order
+      }
     }
     return out;
   }

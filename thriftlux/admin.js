@@ -1980,6 +1980,41 @@ document.getElementById('bulkSaleSaveBtn').addEventListener('click', async () =>
   } catch(err) { showToast(err.message.startsWith('No bags') ? err.message : 'Sync failed: ' + err.message); }
 });
 
+// ---- Boost to top ----
+// Sets boostedAt on the selected bags; the public site floats boosted (unsold)
+// bags to the top of the default Featured order. Most recently boosted first.
+window.bulkBoost = async () => {
+  if (!bulkSelected.size) return;
+  const ids = new Set(bulkSelected);
+  let n = 0;
+  try {
+    await apiMutateAndPublish(() => {
+      n = 0;
+      bags.forEach(b => { if (ids.has(b.id) && !b.sold) { b.boostedAt = new Date().toISOString(); n++; } });
+      if (!n) throw new Error('No bags boosted — sold bags cannot be boosted.');
+    });
+    bulkSelected.clear(); refreshBulkBar();
+    renderAll();
+    showToast(`Boosted ${n} bag${n === 1 ? '' : 's'} to the top of the shop.`);
+  } catch(err) { showToast(err.message.startsWith('No bags') ? err.message : 'Sync failed: ' + err.message); }
+};
+
+window.bulkRemoveBoost = async () => {
+  if (!bulkSelected.size) return;
+  const ids = new Set(bulkSelected);
+  let n = 0;
+  try {
+    await apiMutateAndPublish(() => {
+      n = 0;
+      bags.forEach(b => { if (ids.has(b.id) && b.boostedAt) { delete b.boostedAt; n++; } });
+      if (!n) throw new Error('None of the selected bags were boosted.');
+    });
+    bulkSelected.clear(); refreshBulkBar();
+    renderAll();
+    showToast(`Removed boost from ${n} bag${n === 1 ? '' : 's'}.`);
+  } catch(err) { showToast(err.message.startsWith('None') ? err.message : 'Sync failed: ' + err.message); }
+};
+
 window.bulkRemoveSale = async () => {
   if (!bulkSelected.size) return;
   const ids = new Set(bulkSelected);
@@ -2031,7 +2066,7 @@ function renderList() {
           (!b.sold && b.salePrice > 0 && b.salePrice < b.price)
             ? `<s style="color:#999;font-weight:400;">${fmtKsh(b.price)}</s> <span style="color:#c0392b;font-weight:700;">${fmtKsh(b.salePrice)}</span> <span style="color:#c0392b;font-weight:700;">· SALE</span>`
             : fmtKsh(b.price)
-        } ${b.sold ? '· <span style="color:#b00020">SOLD</span>' : ''}</div>
+        } ${b.sold ? '· <span style="color:#b00020">SOLD</span>' : ''}${(!b.sold && b.boostedAt) ? ' · <span style="color:#8a6d3b;font-weight:700;">⬆ BOOSTED</span>' : ''}</div>
         <div class="admin-card-stock">${escapeHtml(b.category || 'Uncategorised')}</div>
         ${addedIso ? `<div class="admin-card-added" title="Added ${new Date(addedIso).toLocaleString('en-KE')}">Added ${relTime(addedIso)}</div>` : ''}
         ${buyer}
