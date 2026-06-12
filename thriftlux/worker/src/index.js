@@ -436,6 +436,29 @@ function extractFromFeedItem(m) {
   };
 }
 
+// Server-side category coerce — strip anything that isn't an allowed ThriftLux
+// category. Maps near-misses; drops clothing/footwear (null). Module-level so
+// BOTH /api/ig-discover and runIgAutoSync share it (it used to live inside the
+// discover handler; the auto-sync port hoisted it 2026-06-12).
+const ALLOWED = new Set(["Crossbody", "Shoulder", "Tote", "Top Handle", "Hobo", "Bucket", "Baguette", "Clutch", "Sling", "Belt Bag"]);
+const coerce = (c) => {
+  if (!c) return c;
+  const t = String(c).trim();
+  if (ALLOWED.has(t)) return t;
+  if (/^cross[-\s]?body$/i.test(t)) return "Crossbody";
+  if (/^top[-\s]?handle$/i.test(t)) return "Top Handle";
+  if (/^belt[-\s]?bag$/i.test(t)) return "Belt Bag";
+  if (/^hand[-\s]?bag$/i.test(t)) return "Shoulder";
+  if (/^shoulder[-\s]?bag$/i.test(t)) return "Shoulder";
+  if (/^tote[-\s]?bag$/i.test(t)) return "Tote";
+  if (/^evening[-\s]?bag$/i.test(t)) return "Clutch";
+  if (/^satchel$/i.test(t)) return "Top Handle";
+  // ThriftLux sells handbags only — clothing/footwear must NEVER land.
+  if (/^(shoes|sneakers?|boots?|sandals?|slides?|loafers?|heels?|formal|footwear|clothing|tshirts?|t-shirts?|shirts?|jeans?|trousers?|dress(?:es)?|coat|jacket|skirt|hat|cap)$/i.test(t)) return null;
+  if (/^(bag|purse|other)$/i.test(t)) return null; // too generic — let heuristic win
+  return null;
+};
+
 // ---- IG auto-sync (cron) ----
 // Same pipeline as the admin's "Check for new posts" widget, minus the human
 // review step: fetch the feed, AI-classify (heuristic + vision + text), parse
@@ -1042,26 +1065,7 @@ export default {
 
         const fresh = feedData.items.filter(it => !existingIds.has(`ig_${it.shortcode}`) && !existingIds.has(it.shortcode)).slice(0, limit * 2);
 
-        // Server-side category coerce — strip anything that isn't an allowed
-        // ThriftLux category. Maps near-misses; drops clothing/footwear (null).
-        const ALLOWED = new Set(["Crossbody", "Shoulder", "Tote", "Top Handle", "Hobo", "Bucket", "Baguette", "Clutch", "Sling", "Belt Bag"]);
-        const coerce = (c) => {
-          if (!c) return c;
-          const t = String(c).trim();
-          if (ALLOWED.has(t)) return t;
-          if (/^cross[-\s]?body$/i.test(t)) return "Crossbody";
-          if (/^top[-\s]?handle$/i.test(t)) return "Top Handle";
-          if (/^belt[-\s]?bag$/i.test(t)) return "Belt Bag";
-          if (/^hand[-\s]?bag$/i.test(t)) return "Shoulder";
-          if (/^shoulder[-\s]?bag$/i.test(t)) return "Shoulder";
-          if (/^tote[-\s]?bag$/i.test(t)) return "Tote";
-          if (/^evening[-\s]?bag$/i.test(t)) return "Clutch";
-          if (/^satchel$/i.test(t)) return "Top Handle";
-          // ThriftLux sells handbags only — clothing/footwear must NEVER land.
-          if (/^(shoes|sneakers?|boots?|sandals?|slides?|loafers?|heels?|formal|footwear|clothing|tshirts?|t-shirts?|shirts?|jeans?|trousers?|dress(?:es)?|coat|jacket|skirt|hat|cap)$/i.test(t)) return null;
-          if (/^(bag|purse|other)$/i.test(t)) return null; // too generic — let heuristic win
-          return null;
-        };
+        // Category coerce/ALLOWED are module-level (shared with runIgAutoSync).
 
         const classified = await Promise.all(fresh.map(async (it) => {
           const heuristic = looksLikeProduct(it.caption);
