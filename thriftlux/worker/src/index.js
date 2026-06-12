@@ -436,7 +436,129 @@ function extractFromFeedItem(m) {
   };
 }
 
+// ---- IG auto-sync (cron) ----
+// Same pipeline as the admin's "Check for new posts" widget, minus the human
+// review step: fetch the feed, AI-classify (heuristic + vision + text), parse
+// name/category from the caption, download the cover image into KV, prepend to
+// the catalog in the THRIFT bag shape (sold:false, reel, no stock object).
+// 3k+ tier feature (owner directive 2026-06-12). Cap 20/run on Workers Paid.
+// Kill switch: KV key `autosync` = {"enabled":false}. Suspended shops skip.
+// Stagger slot: 06:20 UTC (Iman holds 06:00 [disabled], Ryker 06:10) — IG
+// rate-limits by source IP and the fleet shares Cloudflare egress IPs.
+const IG_AUTOSYNC_USER_ID = "27867036937"; // @thriftlux.ke
+const API_ORIGIN = "https://thriftlux-api.stawisystems.workers.dev";
+const AUTOSYNC_MAX_ITEMS = 20;
+
+async function runIgAutoSync(env) {
+  if ((await env.BAGS.get("suspended")) === "1") return { ok: false, skipped: "suspended" };
+  let cfg;
+  try { cfg = JSON.parse(await env.BAGS.get("autosync")) || {}; } catch { cfg = {}; }
+  if (cfg.enabled === false) return { ok: false, skipped: "disabled" };
+
+  const existingRaw = await env.BAGS.get("data");
+  const data = existingRaw ? JSON.parse(existingRaw) : { bags: [], settings: {} };
+  // Dedup against both raw shortcode and ig_<shortcode> forms (legacy ids).
+  const existingIds = new Set();
+  for (const b of (data.bags || [])) {
+    if (!b?.id) continue;
+    existingIds.add(b.id);
+    if (b.id.startsWith("ig_")) existingIds.add(b.id.slice(3));
+    else existingIds.add(`ig_${b.id}`);
+  }
+
+  const feed = await fetchIgFeed({ userId: IG_AUTOSYNC_USER_ID, count: 24 });
+  if (!feed.items) return { ok: false, error: feed.error || "feed empty" };
+
+  // A few extra candidates beyond the cap so non-bag posts don't eat the run.
+  const fresh = feed.items
+    .filter(it => it.imageUrl && it.shortcode && !existingIds.has(`ig_${it.shortcode}`) && !existingIds.has(it.shortcode))
+    .slice(0, AUTOSYNC_MAX_ITEMS + 3);
+
+  const newBags = [];
+  const skipped = [];
+  for (const it of fresh) {
+    if (newBags.length >= AUTOSYNC_MAX_ITEMS) break;
+    const heuristic = looksLikeProduct(it.caption);
+    const [vision, text] = await Promise.all([
+      classifyPostWithVision(env, it.caption, it.imageUrl),
+      classifyPostWithAi(env, it.caption),
+    ]);
+    const visionOk = vision && !vision._debug;
+    const isProduct = heuristic || (visionOk && vision.is_product) || (text && text.is_product);
+    if (!isProduct) { skipped.push({ shortcode: it.shortcode, reason: "not a product" }); continue; }
+
+    // Same name/category resolution as /api/ig-discover, including the
+    // drop-if-not-a-bag rule (category coercing to null means clothing/shoes).
+    const sug = parseCaptionForBag(it.caption);
+    const looksLikeFragment = (n) => !n || /^(bag|size|tn|hh|js\d+|nb)$/i.test(String(n).trim());
+    let name = sug.name;
+    if (text?.is_product && !looksLikeFragment(text.name) && text.name !== "Pre-loved Bag") {
+      name = text.name.trim();
+    } else if (visionOk && vision.is_product && !looksLikeFragment(vision.name) && vision.name !== "Pre-loved Bag") {
+      name = vision.name.trim();
+    }
+    let category = coerce(sug.category);
+    if (visionOk && vision.is_product && vision.category) {
+      const c = coerce(vision.category);
+      if (c) category = c;
+      else if (vision.category && !ALLOWED.has(vision.category)) {
+        skipped.push({ shortcode: it.shortcode, reason: "vision says not a bag" });
+        continue;
+      }
+    } else if (text?.is_product && text.category) {
+      const c = coerce(text.category);
+      if (c) category = c;
+    }
+    if (!category) { skipped.push({ shortcode: it.shortcode, reason: "category not a bag" }); continue; }
+
+    // Cover image only on auto-sync; carousel extras via the admin edit form.
+    try {
+      const r = await fetch(it.imageUrl);
+      if (!r.ok) throw new Error(`image fetch ${r.status}`);
+      const b64 = arrayToB64(new Uint8Array(await r.arrayBuffer()));
+      const fname = `bag_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+      await env.BAGS.put(`img:${fname}`, b64);
+      await env.BAGS.put(`mime:${fname}`, "image/jpeg");
+
+      const postUrl = `https://www.instagram.com/p/${it.shortcode}/`;
+      const bag = {
+        id: `ig_${it.shortcode}`,
+        name: (name || "Pre-loved Bag").slice(0, 80),
+        category,
+        description: sug.description,
+        price: 0,
+        sold: false,
+        image: `${API_ORIGIN}/img/${fname}`,
+        createdAt: it.takenAt || new Date().toISOString(),
+        reel: postUrl,
+        instagramUrl: postUrl,
+        autoSynced: true,
+      };
+      newBags.push(bag);
+      existingIds.add(bag.id);
+      existingIds.add(it.shortcode);
+    } catch (e) {
+      skipped.push({ shortcode: it.shortcode, reason: e.message });
+    }
+  }
+
+  if (newBags.length) {
+    data.bags = newBags.concat(data.bags);
+    // Bump the concurrency rev so any open admin tab refetches before its next
+    // save (same guard the manual ig-sync uses — can't clobber fresh bags).
+    data.rev = (typeof data.rev === "number" ? data.rev : 0) + 1;
+    await env.BAGS.put("data", JSON.stringify(data));
+  }
+  return { ok: true, added: newBags.length, names: newBags.map(b => b.name), skipped };
+}
+
 export default {
+  // Cloudflare Cron Trigger (see wrangler.toml [triggers]).
+  //   "20 6 * * *" = 09:20 EAT → IG auto-sync (new posts add themselves)
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runIgAutoSync(env));
+  },
+
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS });
@@ -1017,6 +1139,14 @@ export default {
     // Downloads images from IG CDN, uploads to KV, prepends bag objects to the
     // catalog. Bag shape matches the existing ThriftLux thrift model:
     //   { id, name, category, description, price, sold, image, images?, reel, instagramUrl, createdAt }
+    // Admin/agency: run the IG auto-sync on demand (same code the morning cron runs).
+    if (request.method === "POST" && path === "/api/autosync-run") {
+      if (!isAuthed(request, env) && !isMaster(request, env)) return json({ error: "unauthorized" }, 401);
+      const blocked = await suspendBlock(request, env); if (blocked) return blocked;
+      const res = await runIgAutoSync(env);
+      return json(res, res.ok ? 200 : 400);
+    }
+
     if (request.method === "POST" && path === "/api/ig-sync") {
       if (!isAuthed(request, env)) return json({ error: "unauthorized" }, 401);
       const blocked = await suspendBlock(request, env); if (blocked) return blocked;
