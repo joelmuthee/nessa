@@ -410,7 +410,22 @@ function parseIgCaption(raw) {
     name = (clean.split(/[\n.!?]/)[0] || clean).trim();
     price = null;
   }
-  return { name, price, description: clean, sold };
+  // Description keeps the caption detail but NOT the price (it has its own field —
+  // owner rule 2026-06-17) or the SOLD flag. Em/en dashes → commas (copy standard).
+  const description = clean
+    .split(/dm to order|dm to buy|inbox|order now/i)[0]
+    .replace(/\d[\d,]*(?:\.\d+)?\s*\/[=\-]/g, '')
+    .replace(/(?:ksh?s?\.?|kes)\s*\.?\s*\d[\d,]*(?:\.\d+)?\s*k?\b/gi, '')
+    .replace(/@\s*\d[\d,]*(?:\.\d+)?\s*k?\b/gi, '')
+    .replace(/\s*\/[=\-]/g, '')
+    .replace(/\s@(?=\s)/g, '')
+    .replace(/\bsold(?:\s*out)?\b/gi, '')
+    .replace(/\s*[—–]\s*/g, ', ')
+    .replace(/\s+([.,!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s.,\-:;]+|[\s.,\-:;]+$/g, '')
+    .trim();
+  return { name, price, description, sold };
 }
 
 document.getElementById('igQuickBtn').addEventListener('click', async () => {
@@ -1106,6 +1121,16 @@ function broadcastRecipients() {
       buyers.push({ name: (s.name || 'Friend').split(' ')[0], phone: s.phone });
     }
   });
+  // Manually-added clients with a phone are recipients too. ThriftLux bags have no
+  // categories/sizes to segment by, so they just join the single list (deduped by phone).
+  if (Array.isArray(clients)) {
+    clients.forEach(c => {
+      if (!c || !c.phone) return;
+      if (String(c.phone).replace(/[^0-9]/g, '').length < 9) return;
+      if (broadcastDisabled.has(c.phone)) return;
+      buyers.push({ name: (c.name || 'Friend').split(' ')[0], phone: c.phone });
+    });
+  }
   const seen = new Set();
   return buyers.filter(b => seen.has(b.phone) ? false : (seen.add(b.phone), true));
 }
@@ -2437,6 +2462,7 @@ function renderIgSyncList() {
           </div>
           <div class="ig-sync-row-2">
             <span class="ig-sync-size">${escapeHtml(stockText)}</span>
+            <input type="number" min="0" class="ig-sync-price" data-ig-price="${i}" value="${s.price > 0 ? s.price : ''}" placeholder="Ksh (blank = on request)" style="width:170px;max-width:48%;padding:4px 8px;border:1px solid var(--border,#ccc);border-radius:6px;font-size:13px;">
             <a href="${escapeHtml(it.postUrl)}" target="_blank" rel="noopener" class="ig-sync-postlink">view on IG ↗</a>
           </div>
           <div class="ig-sync-caption">${escapeHtml(captionShort)}</div>
@@ -2460,11 +2486,14 @@ async function commitIgSync() {
     if (!cb || !cb.checked) return;
     const nameEl = igSyncListEl.querySelector(`[data-ig-name="${i}"]`);
     const catEl = igSyncListEl.querySelector(`[data-ig-cat="${i}"]`);
+    const priceEl = igSyncListEl.querySelector(`[data-ig-price="${i}"]`);
+    const priceRaw = (priceEl?.value || '').trim();
     picks.push({
       shortcode: it.shortcode,
       name: (nameEl?.value || it.suggested?.name || '').trim() || 'Pre-loved Bag',
       category: catEl?.value || it.suggested?.category || 'Shoulder',
       stock: it.suggested?.stock || { 'One Size': 1 },
+      price: priceRaw === '' ? 0 : (parseInt(priceRaw, 10) || 0),
       description: it.suggested?.description || '',
       imageUrls: it.imageUrls || [it.imageUrl],
       takenAt: it.takenAt,
@@ -2622,6 +2651,8 @@ function showPosReceipt(s) {
   const wa = document.getElementById('posWaReceiptBtn');
   if (s.buyerPhone && s.buyerPhone.replace(/[^0-9]/g, '').length >= 9) { wa.href = `https://wa.me/${posWaPhone(s.buyerPhone)}?text=${encodeURIComponent(posReceiptText(s))}`; wa.style.display = ''; }
   else { wa.style.display = 'none'; }
+  const imgBtn = document.getElementById('posImgReceiptBtn'); // Shop Manager (5k)+ only
+  if (imgBtn) imgBtn.style.display = RECEIPT_IMAGE_ENABLED ? '' : 'none';
   document.getElementById('posReceiptPanel').style.display = '';
 }
 function posPrintReceipt() {
@@ -2640,6 +2671,104 @@ function posPrintReceipt() {
       <div class="rcpt-foot">Thank you for shopping with us!</div>
     </div>`;
   window.print();
+}
+
+// --- Image receipt (canvas PNG) — Shop Manager (5k)+ feature ---------------
+// Pure canvas (no library) so it works inside the WhatsApp / IG in-app browser.
+// Logo is same-origin (images/logo.jpg) so the canvas never taints on export.
+const RECEIPT_IMAGE_ENABLED = true;
+const RCPT_BRAND = { name: 'ThriftLux', gold: '#c9a961', goldDeep: '#a88847', ink: '#0d0d0d', inkSoft: '#4a4540', faint: '#8a857f', line: '#ece6dc', addr: ['0705 044 940'], url: 'nessa.co.ke/thriftlux', sizePrefix: '' };
+let _receiptLogo = null;
+function loadReceiptLogo() {
+  if (_receiptLogo !== null) return Promise.resolve(_receiptLogo || null);
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => { _receiptLogo = img; res(img); };
+    img.onerror = () => { _receiptLogo = false; res(null); };
+    img.src = 'images/logo.jpg';
+  });
+}
+function buildReceiptCanvas(s, logoImg, B) {
+  const SCALE = 3, W = 620, M = 44;
+  const qty = Number(s.qty) || 1;
+  const total = (Number(s.amount) || 0) * qty;
+  const hasBal = s.balance > 0;
+  const detail = [];
+  if (s.size) detail.push((B.sizePrefix || '') + s.size);
+  if (s.size || qty > 1) detail.push(`${qty} × ${fmtKsh(s.amount)}`);
+  const subLine = detail.join(' · ');
+  const seg = { top: 34, logo: logoImg ? 132 : 88, caption: 30, addr: B.addr.length > 1 ? 46 : 30, div1: 26,
+    item: subLine ? 64 : 44, div2: 26, total: 52, cust: s.buyerName ? 34 : 0, paid: 34, bal: hasBal ? 70 : 0, date: 38, foot: 60, bottom: 30 };
+  const H = Object.values(seg).reduce((a, b) => a + b, 0);
+  const c = document.createElement('canvas');
+  c.width = W * SCALE; c.height = H * SCALE;
+  const x = c.getContext('2d'); x.scale(SCALE, SCALE);
+  const trunc = (t, n) => { t = String(t || ''); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  x.fillStyle = '#fffdf8'; x.fillRect(0, 0, W, H);
+  x.fillStyle = B.gold; x.fillRect(0, 0, W, 6);
+  let y = seg.top;
+  x.textAlign = 'center';
+  if (logoImg) {
+    const lw = 150, lh = Math.min(lw * (logoImg.height / logoImg.width || 1), 118);
+    x.drawImage(logoImg, (W - lw) / 2, y, lw, lh);
+  } else { x.fillStyle = B.ink; x.font = '600 32px Georgia, serif'; x.fillText(B.name, W / 2, y + 38); }
+  y += seg.logo;
+  x.fillStyle = B.goldDeep; x.font = '600 15px Arial'; x.fillText('S A L E   R E C E I P T', W / 2, y); y += seg.caption;
+  x.fillStyle = B.faint; x.font = '13px Arial'; B.addr.forEach((line, i) => x.fillText(line, W / 2, y + i * 18)); y += seg.addr;
+  const div = () => { x.strokeStyle = B.line; x.lineWidth = 1; x.beginPath(); x.moveTo(M, y); x.lineTo(W - M, y); x.stroke(); };
+  div(); y += seg.div1;
+  x.textAlign = 'left'; x.fillStyle = B.ink; x.font = '600 18px Arial'; x.fillText(trunc(s.name, 32), M, y + 6);
+  if (subLine) {
+    x.fillStyle = B.faint; x.font = '14px Arial'; x.fillText(subLine, M, y + 30);
+    x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 18px Arial'; x.fillText(fmtKsh(total), W - M, y + 30);
+  } else { x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 18px Arial'; x.fillText(fmtKsh(total), W - M, y + 6); }
+  y += seg.item;
+  x.textAlign = 'left'; div(); y += seg.div2;
+  x.fillStyle = B.ink; x.font = '700 22px Arial'; x.fillText('TOTAL', M, y + 8);
+  x.textAlign = 'right'; x.fillStyle = B.goldDeep; x.font = '700 24px Arial'; x.fillText(fmtKsh(total), W - M, y + 8); y += seg.total;
+  if (s.buyerName) {
+    x.textAlign = 'left'; x.fillStyle = B.inkSoft; x.font = '15px Arial'; x.fillText('Customer', M, y);
+    x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 15px Arial'; x.fillText(trunc(s.buyerName, 26), W - M, y); y += seg.cust;
+  }
+  x.textAlign = 'left'; x.fillStyle = B.inkSoft; x.font = '15px Arial'; x.fillText('Paid by', M, y);
+  x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 15px Arial'; x.fillText(s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash', W - M, y); y += seg.paid;
+  if (hasBal) {
+    x.textAlign = 'left'; x.fillStyle = B.inkSoft; x.font = '15px Arial'; x.fillText('Paid now', M, y);
+    x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 15px Arial'; x.fillText(fmtKsh(s.paid), W - M, y); y += 34;
+    x.textAlign = 'left'; x.fillStyle = '#b00020'; x.font = '700 16px Arial'; x.fillText('BALANCE OWING', M, y);
+    x.textAlign = 'right'; x.fillText(fmtKsh(s.balance), W - M, y); y += 36;
+  }
+  x.textAlign = 'center'; x.fillStyle = B.faint; x.font = '13px Arial';
+  x.fillText(new Date(s.soldAt || Date.now()).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }), W / 2, y); y += seg.date;
+  x.fillStyle = B.goldDeep; x.font = 'italic 16px Georgia, serif'; x.fillText('Thank you for shopping with us', W / 2, y);
+  x.fillStyle = B.gold; x.font = '600 13px Arial'; x.fillText(B.url, W / 2, y + 24);
+  return c;
+}
+async function posShareReceiptImage() {
+  if (!lastPosSale) return;
+  const btn = document.getElementById('posImgReceiptBtn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+  try {
+    const logo = await loadReceiptLogo();
+    const canvas = buildReceiptCanvas(lastPosSale, logo, RCPT_BRAND);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    if (!blob) throw new Error('render failed');
+    const fname = `${RCPT_BRAND.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-receipt-${(lastPosSale.name || 'sale').replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 28)}.png`;
+    const file = new File([blob], fname, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: RCPT_BRAND.name + ' receipt', text: posReceiptText(lastPosSale) });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast('Receipt image saved to your phone — attach it in WhatsApp.');
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    showToast('Could not make the receipt image: ' + (e.message || e));
+  } finally { if (btn) { btn.disabled = false; btn.textContent = orig; } }
 }
 function renderPosToday() {
   const el = document.getElementById('posTodaySplit'); if (!el) return;
@@ -2711,6 +2840,7 @@ document.getElementById('posRecordBtn')?.addEventListener('click', recordPosSale
 document.getElementById('posCancelBtn')?.addEventListener('click', posReset);
 document.getElementById('posNewSaleBtn')?.addEventListener('click', posReset);
 document.getElementById('posPrintReceiptBtn')?.addEventListener('click', posPrintReceipt);
+document.getElementById('posImgReceiptBtn')?.addEventListener('click', posShareReceiptImage);
 
 // ===== Mobile-safe collapsible toggles =====
 // Drive each <details> from JS (preventDefault + flip .open). A <summary> with

@@ -11,12 +11,13 @@ id = "3da577dc31c9474f80394b53caeabbe8"
 [ai]
 binding = "AI"
 
-# IG auto-sync — twice a day (owner ask 2026-06-12: owners post during the
-# day, so afternoon + evening waves catch same-day posts). ThriftLux's fleet
-# stagger offset is :20 past the wave hour (Iman holds :00 [disabled],
-# Ryker :10). 10:20 UTC = 13:20 EAT, 16:20 UTC = 19:20 EAT.
+# IG auto-sync — THREE times a day (owner ask 2026-06-17: bumped from twice).
+# Owners post through the day, so morning + afternoon + evening waves catch
+# same-day posts. ThriftLux's fleet stagger offset is :20 past the wave hour
+# (Iman holds :00 [disabled], Ryker :10). 6:20 UTC = 9:20 EAT (morning),
+# 10:20 UTC = 13:20 EAT (afternoon), 16:20 UTC = 19:20 EAT (evening).
 [triggers]
-crons = ["20 10 * * *", "20 16 * * *"]
+crons = ["20 6 * * *", "20 10 * * *", "20 16 * * *"]
 
 # Auth token is set as a secret, not in this file:
 #   wrangler secret put ADMIN_TOKEN
