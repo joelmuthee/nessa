@@ -237,13 +237,26 @@ function captionToDescription(caption) {
 function parseCaptionForBag(caption) {
   const text = (caption || "").trim();
   const lower = text.toLowerCase();
-  const cleaned = text.split(/whastup|whatsapp|wa\.me|0746/i)[0].trim().replace(/[.\s]+$/, "");
   let [brand, category] = deriveBrand(caption);
-  if (!brand) {
-    const first = cleaned.split(/\.\.|,|\n/)[0].trim();
-    brand = first ? first.slice(0, 60).replace(/\b\w/g, c => c.toUpperCase()) : "Pre-loved Bag";
-    category = category || "Shoulder";
+  const desc = captionToDescription(caption);     // price/contact/hashtag-stripped
+  const hasCaption = desc !== DEFAULT_DESC;
+  let name, description;
+  if (brand) {
+    name = brand;
+    description = hasCaption ? desc : DEFAULT_DESC;
+  } else if (hasCaption) {
+    // No brand — the cleaned descriptor IS the product name (NOT the generic
+    // "Pre-loved Bag" placeholder). First clause = title (Title Case, price
+    // already stripped so no "@1750/=" lands here); anything after = description.
+    const head = (desc.split(/[.!?\n]|,(?=\s)/)[0] || "").trim();
+    name = (head || desc).slice(0, 70).replace(/\b\w/g, c => c.toUpperCase());
+    const rest = desc.slice(head.length).replace(/^[\s.,!?]+/, "").trim();
+    description = rest.length >= 10 ? rest : DEFAULT_DESC;
+  } else {
+    name = "Pre-loved Bag";
+    description = DEFAULT_DESC;
   }
+  category = category || "Shoulder";
   const stock = {};
   if (/\bmini\b/.test(lower)) stock["Mini"] = 1;
   else if (/\bsmall\b/.test(lower)) stock["Small"] = 1;
@@ -251,11 +264,11 @@ function parseCaptionForBag(caption) {
   else if (/\blarge\b/.test(lower)) stock["Large"] = 1;
   else stock["One Size"] = 1;
   return {
-    name: brand,
-    category: category || "Shoulder",
+    name: name || "Pre-loved Bag",
+    category,
     stock,
     price: parsePriceFromCaption(caption),
-    description: captionToDescription(caption),
+    description,
   };
 }
 
