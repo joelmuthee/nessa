@@ -418,7 +418,7 @@ function parseIgCaption(raw) {
     .replace(/(?:ksh?s?\.?|kes)\s*\.?\s*\d[\d,]*(?:\.\d+)?\s*k?\b/gi, '')
     .replace(/@\s*\d[\d,]*(?:\.\d+)?\s*k?\b/gi, '')
     .replace(/\s*\/[=\-]/g, '')
-    .replace(/\s@(?=\s)/g, '')
+    .replace(/\s*@(?=\s|$)/g, '')
     .replace(/\bsold(?:\s*out)?\b/gi, '')
     .replace(/\s*[—–]\s*/g, ', ')
     .replace(/\s+([.,!?])/g, '$1')
