@@ -223,7 +223,7 @@ function captionToDescription(caption) {
     .replace(/@\s*\d[\d,]*(?:\.\d+)?\s*k?\b/gi, "")                    // @4500
     .replace(/\b(?:price|bei|now|going for)\s*:?\s*(?:ksh?s?\s*)?\d[\d,]*\s*k?\b/gi, "") // price: 4500
     .replace(/\s*\/[=\-]/g, "")                                        // orphan /= /- left after a price strip
-    .replace(/\s*@(?=\s|$)/g, "")                                      // orphan @ left after a price strip
+    .replace(/\s*@(?!\w)/g, "")                                        // orphan @ left after a price strip (before space, punct or end)
     .replace(/\bsold(?:\s*out)?\b/gi, "")                             // SOLD / SOLD OUT
     .replace(/\s*[—–]\s*/g, ", ")                                      // em/en dash → comma (copy standard)
     .replace(/[•|]+/g, " ")
