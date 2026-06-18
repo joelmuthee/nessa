@@ -9,6 +9,7 @@ const SHOP_URL = 'https://nessa.co.ke/thriftlux'; // public storefront — used 
 let bags = [];
 let settings = {};
 let clients = []; // manually-added clients (server-synced); sale buyers derived from soldTo
+let expenses = []; // operating expenses (ad spend, packaging, etc.) — admin-only, server-synced
 let accountSuspended = false;
 let loyaltyUnlocked = false;
 let dataRev = 0; // optimistic-concurrency version of the catalogue (from /api/bags); echoed back on save
@@ -131,7 +132,7 @@ async function publishBags() {
   const res = await fetch(`${API_BASE}/api/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify({ bags, settings, clients, baseRev: dataRev }),
+    body: JSON.stringify({ bags, settings, clients, expenses, baseRev: dataRev }),
   });
   if (res.status === 409) {
     const e = new Error('version conflict'); e.conflict = true; throw e;
@@ -166,6 +167,7 @@ async function apiMutateAndPublish(mutate) {
     bags = Array.isArray(json.bags) ? json.bags : [];
     settings = json.settings || {};
     clients = Array.isArray(json.clients) ? json.clients : [];
+    expenses = Array.isArray(json.expenses) ? json.expenses : [];
     loyaltyUnlocked = !!json.loyaltyUnlocked;
     dataRev = typeof json.rev === 'number' ? json.rev : 0;
     backfill();
@@ -187,6 +189,7 @@ async function loadData() {
   bags = json.bags || [];
   settings = json.settings || {};
   clients = Array.isArray(json.clients) ? json.clients : [];
+  expenses = Array.isArray(json.expenses) ? json.expenses : [];
   accountSuspended = !!json.suspended;
   loyaltyUnlocked = !!json.loyaltyUnlocked;
   dataRev = typeof json.rev === 'number' ? json.rev : 0;
@@ -917,6 +920,19 @@ function renderStats() {
       profitSub.style.display = '';
     } else {
       profitSub.style.display = 'none';
+    }
+  }
+  // Net profit after operating expenses (ad spend etc.). Only shown once the
+  // owner has logged any expense — otherwise it's just a duplicate of profit.
+  const netSub = document.getElementById('statAllNetSub');
+  if (netSub) {
+    const exp = expensesTotal();
+    if (exp > 0) {
+      set('statAllExpenses', fmtKsh(exp));
+      set('statAllNetProfit', fmtKsh(profitAll - exp));
+      netSub.style.display = '';
+    } else {
+      netSub.style.display = 'none';
     }
   }
 
@@ -2196,12 +2212,247 @@ if (insightsResetBtn) {
   });
 }
 
+// ==================== EXPENSES ====================
+// Operating expenses (IG ad spend, packaging, transport, etc.) — the owner's
+// private books, never shown on the public store. Two kinds:
+//   one-off    — a single dated amount.
+//   recurring  — an amount per daily/weekly/monthly period that auto-accrues
+//                from its start date (an estimate; real ad deductions vary).
+// Net profit on the Sales Overview = gross profit − total accrued expenses.
+const EXPENSES_ENABLED = true; // 3k Shop Records tier; flip false on a locked build
+const EXPENSE_CATEGORIES = ['Instagram ads', 'Other ads', 'Packaging', 'Transport / Delivery', 'Stock buying', 'Rent', 'Airtime / Data', 'Other'];
+const EXP_DAY_MS = 86400000;
+let expEditId = null;     // id being edited, or null when adding
+let expConfirmDel = null; // id awaiting delete confirmation
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Charge-periods a recurring expense has accrued from start up to `asOf`
+// (inclusive of the current period).
+function expRecurringPeriods(exp, asOf) {
+  const start = Date.parse(exp.startDate);
+  if (!Number.isFinite(start)) return 0;
+  let end = asOf;
+  if (exp.endDate) { const e = Date.parse(exp.endDate); if (Number.isFinite(e)) end = Math.min(end, e); }
+  if (end < start) return 0;
+  const days = Math.floor((end - start) / EXP_DAY_MS); // 0 on the start day
+  if (exp.cadence === 'weekly') return Math.floor(days / 7) + 1;
+  if (exp.cadence === 'monthly') {
+    const a = new Date(start), b = new Date(end);
+    return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + 1;
+  }
+  return days + 1; // daily
+}
+
+// Accrued total for one expense up to `asOf` (default now).
+function expenseAccrued(exp, asOf = Date.now()) {
+  const amt = Number(exp.amount) || 0;
+  if (exp.type === 'recurring') return amt * expRecurringPeriods(exp, asOf);
+  return amt; // one-off
+}
+
+// Total accrued expenses across all entries up to `asOf`.
+function expensesTotal(asOf = Date.now()) {
+  return (expenses || []).reduce((s, e) => s + expenseAccrued(e, asOf), 0);
+}
+
+// Spend that fell within [from, to] — for the "this month" KPI.
+function expensesBetween(from, to) {
+  let sum = 0;
+  for (const e of (expenses || [])) {
+    if (e.type === 'recurring') {
+      sum += expenseAccrued(e, to) - expenseAccrued(e, from);
+    } else {
+      const d = Date.parse(e.date);
+      if (Number.isFinite(d) && d >= from && d <= to) sum += Number(e.amount) || 0;
+    }
+  }
+  return Math.max(0, Math.round(sum));
+}
+
+function expCadenceWord(c) { return c === 'weekly' ? 'week' : c === 'monthly' ? 'month' : 'day'; }
+
+function expDescribe(e) {
+  if (e.type === 'recurring') {
+    const since = e.startDate ? fmtDate(e.startDate) : '';
+    const status = e.active === false ? ' · stopped' : '';
+    return `${fmtKsh(e.amount)}/${expCadenceWord(e.cadence)} · since ${since}${status}`;
+  }
+  return `${fmtKsh(e.amount)} · ${e.date ? fmtDate(e.date) : ''}`;
+}
+
+function renderExpenses() {
+  if (!EXPENSES_ENABLED) return;
+  const grid = document.getElementById('expKpiGrid');
+  const list = document.getElementById('expList');
+  if (!grid || !list) return;
+
+  const now = Date.now();
+  const monthStart = (() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const monthSpend = expensesBetween(monthStart, now);
+  const allSpend = Math.round(expensesTotal(now));
+  const activeRecurring = (expenses || []).filter(e => e.type === 'recurring' && e.active !== false).length;
+
+  grid.innerHTML = `
+    <div class="inv-kpi"><div class="inv-kpi-label">Spent this month</div><div class="inv-kpi-value">${fmtKsh(monthSpend)}</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Spent all-time</div><div class="inv-kpi-value">${fmtKsh(allSpend)}</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Recurring running</div><div class="inv-kpi-value">${activeRecurring}</div></div>`;
+
+  const set = (expenses || []).slice().sort((a, b) => (Date.parse(b.date || b.startDate || b.createdAt) || 0) - (Date.parse(a.date || a.startDate || a.createdAt) || 0));
+  if (!set.length) {
+    list.innerHTML = `<p style="font-size:13px;color:#8a857f;padding:8px 2px;">No expenses logged yet. Add your Instagram ad spend, packaging, transport — anything you spend on the shop — to see your real profit.</p>`;
+    return;
+  }
+  list.innerHTML = set.map(e => {
+    const accrued = e.type === 'recurring' ? `<span style="color:#8a857f;font-size:12px;"> · ${fmtKsh(Math.round(expenseAccrued(e)))} so far</span>` : '';
+    const confirming = expConfirmDel === e.id;
+    const actions = confirming
+      ? `<button class="btn-admin danger" data-exp-del="${e.id}" type="button">Delete</button><button class="btn-admin" data-exp-delcancel="1" type="button">Cancel</button>`
+      : `<button class="btn-admin" data-exp-edit="${e.id}" type="button">Edit</button><button class="btn-admin" data-exp-askdel="${e.id}" type="button">Remove</button>`;
+    return `<div class="client-card">
+      <div style="flex:1 1 auto;min-width:0;">
+        <div style="font-weight:600;">${escapeHtml(e.label || 'Expense')}</div>
+        <div style="font-size:12.5px;color:#6a655f;">${escapeHtml(e.category || 'Other')} · ${expDescribe(e)}${accrued}</div>
+        ${e.note ? `<div style="font-size:12px;color:#8a857f;margin-top:2px;">${escapeHtml(e.note)}</div>` : ''}
+      </div>
+      <div class="client-actions" style="display:flex;gap:6px;flex-wrap:wrap;">${actions}</div>
+    </div>`;
+  }).join('');
+}
+
+// Show/hide the one-off vs recurring field blocks based on the selected type.
+function expSyncTypeFields() {
+  const type = document.querySelector('#expTypeToggle .pos-pay-btn.active')?.dataset.exptype || 'oneoff';
+  const oneoff = document.getElementById('expOneoffFields');
+  const recur = document.getElementById('expRecurringFields');
+  if (oneoff) oneoff.style.display = type === 'oneoff' ? '' : 'none';
+  if (recur) recur.style.display = type === 'recurring' ? '' : 'none';
+}
+
+function expResetForm() {
+  expEditId = null;
+  const v = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  v('expLabel', ''); v('expAmount', ''); v('expNote', '');
+  const cat = document.getElementById('expCategory'); if (cat) cat.selectedIndex = 0;
+  document.querySelectorAll('#expTypeToggle .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.exptype === 'oneoff'));
+  v('expDate', todayISO());
+  const cad = document.getElementById('expCadence'); if (cad) cad.value = 'daily';
+  v('expStartDate', todayISO());
+  const act = document.getElementById('expActive'); if (act) act.checked = true;
+  const sv = document.getElementById('expSaveBtn'); if (sv) sv.textContent = 'Save expense';
+  expSyncTypeFields();
+}
+
+function editExpense(id) {
+  const e = (expenses || []).find(x => x.id === id);
+  if (!e) return;
+  expEditId = id;
+  const v = (eid, val) => { const el = document.getElementById(eid); if (el) el.value = val; };
+  v('expLabel', e.label || ''); v('expAmount', e.amount || ''); v('expNote', e.note || '');
+  const cat = document.getElementById('expCategory');
+  if (cat) { cat.value = EXPENSE_CATEGORIES.includes(e.category) ? e.category : 'Other'; }
+  document.querySelectorAll('#expTypeToggle .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.exptype === (e.type || 'oneoff')));
+  v('expDate', e.date || todayISO());
+  const cad = document.getElementById('expCadence'); if (cad) cad.value = e.cadence || 'daily';
+  v('expStartDate', e.startDate || todayISO());
+  const act = document.getElementById('expActive'); if (act) act.checked = e.active !== false;
+  const sv = document.getElementById('expSaveBtn'); if (sv) sv.textContent = 'Update expense';
+  expSyncTypeFields();
+  const form = document.getElementById('expFormWrap'); if (form && form.tagName === 'DETAILS') form.open = true;
+  document.getElementById('expLabel')?.focus();
+}
+
+async function saveExpense() {
+  if (!EXPENSES_ENABLED) return;
+  const label = document.getElementById('expLabel').value.trim();
+  const amount = Math.round(Number(document.getElementById('expAmount').value) || 0);
+  const category = document.getElementById('expCategory').value;
+  const type = document.querySelector('#expTypeToggle .pos-pay-btn.active')?.dataset.exptype || 'oneoff';
+  const note = document.getElementById('expNote').value.trim();
+  if (!label) { showToast('Give the expense a name.'); return; }
+  if (!(amount > 0)) { showToast('Enter an amount more than 0.'); return; }
+
+  const exp = { id: expEditId || `exp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, label, amount, category, type, note };
+  if (type === 'recurring') {
+    exp.cadence = document.getElementById('expCadence').value || 'daily';
+    exp.startDate = document.getElementById('expStartDate').value || todayISO();
+    exp.active = document.getElementById('expActive').checked;
+    // When stopped, freeze accrual at today's date so it doesn't keep growing.
+    if (!exp.active) exp.endDate = (expenses.find(x => x.id === exp.id)?.endDate) || todayISO();
+  } else {
+    exp.date = document.getElementById('expDate').value || todayISO();
+  }
+  const editing = !!expEditId;
+  if (!editing) exp.createdAt = new Date().toISOString();
+
+  const btn = document.getElementById('expSaveBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await apiMutateAndPublish(() => {
+      const i = expenses.findIndex(x => x.id === exp.id);
+      if (i >= 0) expenses[i] = { ...expenses[i], ...exp };
+      else expenses.push(exp);
+    });
+    expResetForm();
+    renderAll();
+    showToast(editing ? 'Expense updated.' : 'Expense added.');
+    const wrap = document.getElementById('expFormWrap'); if (wrap && wrap.tagName === 'DETAILS') wrap.open = false;
+  } catch (e) {
+    showToast(e.message || 'Could not save.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = editing ? 'Update expense' : 'Save expense'; }
+  }
+}
+
+async function deleteExpense(id) {
+  try {
+    await apiMutateAndPublish(() => { expenses = expenses.filter(x => x.id !== id); });
+    expConfirmDel = null;
+    if (expEditId === id) expResetForm();
+    renderAll();
+    showToast('Expense removed.');
+  } catch (e) {
+    showToast(e.message || 'Could not remove.');
+  }
+}
+
+function initExpenses() {
+  if (!EXPENSES_ENABLED) {
+    document.getElementById('expensesDash')?.style.setProperty('display', 'none');
+    document.querySelector('.admin-nav a[href="#expensesDash"]')?.style.setProperty('display', 'none');
+    return;
+  }
+  // Populate the category select.
+  const cat = document.getElementById('expCategory');
+  if (cat && !cat.options.length) cat.innerHTML = EXPENSE_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  document.getElementById('expDate') && (document.getElementById('expDate').value = todayISO());
+  document.getElementById('expStartDate') && (document.getElementById('expStartDate').value = todayISO());
+  // Type toggle.
+  document.getElementById('expTypeToggle')?.addEventListener('click', (ev) => {
+    const b = ev.target.closest('.pos-pay-btn'); if (!b) return;
+    document.querySelectorAll('#expTypeToggle .pos-pay-btn').forEach(x => x.classList.toggle('active', x === b));
+    expSyncTypeFields();
+  });
+  document.getElementById('expSaveBtn')?.addEventListener('click', saveExpense);
+  document.getElementById('expCancelBtn')?.addEventListener('click', () => { expResetForm(); const w = document.getElementById('expFormWrap'); if (w && w.tagName === 'DETAILS') w.open = false; });
+  // List actions (delegated).
+  document.getElementById('expList')?.addEventListener('click', (ev) => {
+    const t = ev.target.closest('button'); if (!t) return;
+    if (t.dataset.expEdit) { editExpense(t.dataset.expEdit); }
+    else if (t.dataset.expAskdel) { expConfirmDel = t.dataset.expAskdel; renderExpenses(); }
+    else if (t.dataset.expDelcancel) { expConfirmDel = null; renderExpenses(); }
+    else if (t.dataset.expDel) { deleteExpense(t.dataset.expDel); }
+  });
+  expSyncTypeFields();
+}
+
 function renderAll() {
   renderStats();
   renderInventory();
   renderBroadcast();
   renderClients();
   renderOwed();
+  renderExpenses();
   renderLoyalty();
   renderInsights();
   renderList();
@@ -2534,6 +2785,7 @@ async function init() {
   showToast('Loading bags…');
   await loadData();
   renderSuspendedBanner();
+  initExpenses();
   renderAll();
   initNavScrollSpy();
   initAutoRefresh();
