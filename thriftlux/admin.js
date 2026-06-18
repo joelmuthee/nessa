@@ -2294,9 +2294,9 @@ function renderExpenses() {
   const activeRecurring = (expenses || []).filter(e => e.type === 'recurring' && e.active !== false).length;
 
   grid.innerHTML = `
-    <div class="inv-kpi"><div class="inv-kpi-label">Spent this month</div><div class="inv-kpi-value">${fmtKsh(monthSpend)}</div></div>
-    <div class="inv-kpi"><div class="inv-kpi-label">Spent all-time</div><div class="inv-kpi-value">${fmtKsh(allSpend)}</div></div>
-    <div class="inv-kpi"><div class="inv-kpi-label">Recurring running</div><div class="inv-kpi-value">${activeRecurring}</div></div>`;
+    <div class="inv-kpi"><div class="inv-kpi-label">Spent this month</div><div class="inv-kpi-val">${fmtKsh(monthSpend)}</div><div class="inv-kpi-sub">on ads, packaging, etc.</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Spent all-time</div><div class="inv-kpi-val">${fmtKsh(allSpend)}</div><div class="inv-kpi-sub">total recorded</div></div>
+    <div class="inv-kpi"><div class="inv-kpi-label">Recurring running</div><div class="inv-kpi-val">${activeRecurring}</div><div class="inv-kpi-sub">auto-adding spend</div></div>`;
 
   const set = (expenses || []).slice().sort((a, b) => (Date.parse(b.date || b.startDate || b.createdAt) || 0) - (Date.parse(a.date || a.startDate || a.createdAt) || 0));
   if (!set.length) {
@@ -2309,13 +2309,13 @@ function renderExpenses() {
     const actions = confirming
       ? `<button class="btn-admin danger" data-exp-del="${e.id}" type="button">Delete</button><button class="btn-admin" data-exp-delcancel="1" type="button">Cancel</button>`
       : `<button class="btn-admin" data-exp-edit="${e.id}" type="button">Edit</button><button class="btn-admin" data-exp-askdel="${e.id}" type="button">Remove</button>`;
-    return `<div class="client-card">
-      <div style="flex:1 1 auto;min-width:0;">
-        <div style="font-weight:600;">${escapeHtml(e.label || 'Expense')}</div>
-        <div style="font-size:12.5px;color:#6a655f;">${escapeHtml(e.category || 'Other')} · ${expDescribe(e)}${accrued}</div>
-        ${e.note ? `<div style="font-size:12px;color:#8a857f;margin-top:2px;">${escapeHtml(e.note)}</div>` : ''}
+    return `<div class="client-row">
+      <div class="client-row-main">
+        <div class="client-row-name">${escapeHtml(e.label || 'Expense')}</div>
+        <div class="client-row-sub">${escapeHtml(e.category || 'Other')} · ${expDescribe(e)}${accrued}</div>
+        ${e.note ? `<div class="client-note">${escapeHtml(e.note)}</div>` : ''}
       </div>
-      <div class="client-actions" style="display:flex;gap:6px;flex-wrap:wrap;">${actions}</div>
+      <div class="client-row-actions">${actions}</div>
     </div>`;
   }).join('');
 }
