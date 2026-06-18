@@ -2270,6 +2270,48 @@ function expensesBetween(from, to) {
   return Math.max(0, Math.round(sum));
 }
 
+// Custom categories the owner has already used (anything not in the presets).
+// Sweeping the expenses means a custom category persists as a choice forever
+// once it's been used once — same idea as the product category dropdown.
+function expUsedCategories() {
+  const used = new Set();
+  (expenses || []).forEach(e => { if (e.category && !EXPENSE_CATEGORIES.includes(e.category)) used.add(e.category); });
+  return [...used].sort((a, b) => a.localeCompare(b));
+}
+
+// Rebuild the category <select>: presets, then a "Your categories" group of
+// custom ones, then the "+ Add new category…" escape hatch. `selected` is
+// pre-chosen (and injected if it's a custom value not otherwise listed).
+function buildExpCategorySelect(selected) {
+  const sel = document.getElementById('expCategory');
+  if (!sel) return;
+  const custom = expUsedCategories();
+  if (selected && !EXPENSE_CATEGORIES.includes(selected) && !custom.includes(selected)) custom.push(selected);
+  let html = EXPENSE_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  if (custom.length) html += `<optgroup label="Your categories">${custom.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</optgroup>`;
+  html += `<option value="__new__">+ Add new category…</option>`;
+  sel.innerHTML = html;
+  sel.value = (selected && [...sel.options].some(o => o.value === selected)) ? selected : EXPENSE_CATEGORIES[0];
+  toggleExpNewCategory();
+}
+
+// Show the free-text box only when "+ Add new category…" is picked.
+function toggleExpNewCategory() {
+  const sel = document.getElementById('expCategory');
+  const box = document.getElementById('expCategoryNew');
+  if (!sel || !box) return;
+  if (sel.value === '__new__') { box.style.display = ''; box.focus(); }
+  else { box.style.display = 'none'; box.value = ''; }
+}
+
+// Resolve the chosen category, honouring the "+ Add new…" free-text path.
+function getExpCategory() {
+  const sel = document.getElementById('expCategory');
+  if (!sel) return 'Other';
+  if (sel.value === '__new__') return document.getElementById('expCategoryNew').value.trim() || 'Other';
+  return sel.value || 'Other';
+}
+
 function expCadenceWord(c) { return c === 'weekly' ? 'week' : c === 'monthly' ? 'month' : 'day'; }
 
 function expDescribe(e) {
@@ -2333,7 +2375,7 @@ function expResetForm() {
   expEditId = null;
   const v = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   v('expLabel', ''); v('expAmount', ''); v('expNote', '');
-  const cat = document.getElementById('expCategory'); if (cat) cat.selectedIndex = 0;
+  buildExpCategorySelect();
   document.querySelectorAll('#expTypeToggle .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.exptype === 'oneoff'));
   v('expDate', todayISO());
   const cad = document.getElementById('expCadence'); if (cad) cad.value = 'daily';
@@ -2349,8 +2391,7 @@ function editExpense(id) {
   expEditId = id;
   const v = (eid, val) => { const el = document.getElementById(eid); if (el) el.value = val; };
   v('expLabel', e.label || ''); v('expAmount', e.amount || ''); v('expNote', e.note || '');
-  const cat = document.getElementById('expCategory');
-  if (cat) { cat.value = EXPENSE_CATEGORIES.includes(e.category) ? e.category : 'Other'; }
+  buildExpCategorySelect(e.category);
   document.querySelectorAll('#expTypeToggle .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.exptype === (e.type || 'oneoff')));
   v('expDate', e.date || todayISO());
   const cad = document.getElementById('expCadence'); if (cad) cad.value = e.cadence || 'daily';
@@ -2366,7 +2407,7 @@ async function saveExpense() {
   if (!EXPENSES_ENABLED) return;
   const label = document.getElementById('expLabel').value.trim();
   const amount = Math.round(Number(document.getElementById('expAmount').value) || 0);
-  const category = document.getElementById('expCategory').value;
+  const category = getExpCategory();
   const type = document.querySelector('#expTypeToggle .pos-pay-btn.active')?.dataset.exptype || 'oneoff';
   const note = document.getElementById('expNote').value.trim();
   if (!label) { showToast('Give the expense a name.'); return; }
@@ -2422,9 +2463,9 @@ function initExpenses() {
     document.querySelector('.admin-nav a[href="#expensesDash"]')?.style.setProperty('display', 'none');
     return;
   }
-  // Populate the category select.
-  const cat = document.getElementById('expCategory');
-  if (cat && !cat.options.length) cat.innerHTML = EXPENSE_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  // Populate the category select (presets + any custom ones already used).
+  buildExpCategorySelect();
+  document.getElementById('expCategory')?.addEventListener('change', toggleExpNewCategory);
   document.getElementById('expDate') && (document.getElementById('expDate').value = todayISO());
   document.getElementById('expStartDate') && (document.getElementById('expStartDate').value = todayISO());
   // Type toggle.
