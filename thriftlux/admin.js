@@ -3149,6 +3149,11 @@ document.getElementById('posImgReceiptBtn')?.addEventListener('click', posShareR
   const broadcastSummary = broadcastCollapse?.querySelector('summary.dash-summary');
   if (broadcastSummary) broadcastSummary.addEventListener('click', (e) => { e.preventDefault(); broadcastCollapse.open = !broadcastCollapse.open; });
   document.querySelector('.admin-nav a[href="#broadcastDash"]')?.addEventListener('click', () => { if (broadcastCollapse) broadcastCollapse.open = true; });
+
+  const expensesCollapse = document.getElementById('expensesCollapse');
+  const expensesSummary = expensesCollapse?.querySelector('summary.dash-summary');
+  if (expensesSummary) expensesSummary.addEventListener('click', (e) => { e.preventDefault(); expensesCollapse.open = !expensesCollapse.open; });
+  document.querySelector('.admin-nav a[href="#expensesDash"]')?.addEventListener('click', () => { if (expensesCollapse) expensesCollapse.open = true; });
 })();
 
 checkAuth();
