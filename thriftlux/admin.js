@@ -2219,7 +2219,7 @@ if (insightsResetBtn) {
 //   recurring  — an amount per daily/weekly/monthly period that auto-accrues
 //                from its start date (an estimate; real ad deductions vary).
 // Net profit on the Sales Overview = gross profit − total accrued expenses.
-const EXPENSES_ENABLED = true; // 3k Shop Records tier; flip false on a locked build
+const EXPENSES_ENABLED = true; // 5k Shop Manager tier (sits with profit tracking); flip false below 5k
 const EXPENSE_CATEGORIES = ['Instagram ads', 'Other ads', 'Packaging', 'Transport / Delivery', 'Stock buying', 'Rent', 'Airtime / Data', 'Other'];
 const EXP_DAY_MS = 86400000;
 let expEditId = null;     // id being edited, or null when adding
