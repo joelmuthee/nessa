@@ -793,7 +793,8 @@ function openBuyerModal(bag) {
   const bagPrice = Number(bag.salePrice && bag.salePrice < bag.price ? bag.salePrice : bag.price) || 0;
   // Pre-fill the editable selling-price field — owner can override it for bargaining.
   const priceInput = document.getElementById('buyerPrice');
-  if (priceInput) priceInput.value = bagPrice || '';
+  if (priceInput) { priceInput.value = bagPrice || ''; priceInput.dataset.list = priceInput.value; }
+  const buyerDisc = document.getElementById('buyerDiscount'); if (buyerDisc) buyerDisc.value = '';
   document.getElementById('buyerModalTitle').textContent = `Mark as sold: ${bag.name}` + (bagPrice ? ` · ${fmtKsh(bagPrice)}` : '');
   buyerModal.style.display = 'flex';
   buyerName.focus();
@@ -828,9 +829,12 @@ async function commitSold(withBuyer) {
       // Owed feature: capture the cash actually taken at sale time. Blank = paid
       // in full (don't write amountPaid so historical sales stay paid-in-full).
       const paidRaw = (document.getElementById('buyerPaid')?.value || '').trim();
+      const disc = Math.max(0, parseInt(document.getElementById('buyerDiscount')?.value, 10) || 0);
+      const listP = parseInt(document.getElementById('buyerPrice')?.dataset.list, 10) || (paid + disc);
+      const discFields = disc > 0 ? { discount: disc, listPrice: listP } : {};
       const soldTo = withBuyer
-        ? { ...buyerInfo, soldAt: new Date().toISOString(), salePrice: paid, paymentMethod: payMethod }
-        : { soldAt: new Date().toISOString(), salePrice: paid, paymentMethod: payMethod };
+        ? { ...buyerInfo, soldAt: new Date().toISOString(), salePrice: paid, ...discFields, paymentMethod: payMethod }
+        : { soldAt: new Date().toISOString(), salePrice: paid, ...discFields, paymentMethod: payMethod };
       if (paidRaw !== '') {
         soldTo.amountPaid = Math.min(paid, Math.max(0, parseInt(paidRaw, 10) || 0));
       }
@@ -842,7 +846,7 @@ async function commitSold(withBuyer) {
     showToast(withBuyer ? 'SOLD. Buyer saved.' : 'Marked as SOLD.');
     if (withBuyer && soldBag?.soldTo?.phone) { sendBuyerToGHL(soldBag); if (loyaltyUnlocked) openSaleThanks(soldBag); }
     if (soldBag) {
-      lastPosSale = { name: soldBag.name, size: soldBag.size || '', qty: 1, amount: Number(soldBag.soldTo.salePrice || soldBag.price || 0), paymentMethod: payMethod, buyerName: soldBag.soldTo.name || '', buyerPhone: soldBag.soldTo.phone || '', soldAt: soldBag.soldTo.soldAt };
+      lastPosSale = { name: soldBag.name, size: soldBag.size || '', qty: 1, amount: Number(soldBag.soldTo.salePrice || soldBag.price || 0), discount: soldBag.soldTo.discount || 0, listPrice: soldBag.soldTo.listPrice || 0, paymentMethod: payMethod, buyerName: soldBag.soldTo.name || '', buyerPhone: soldBag.soldTo.phone || '', soldAt: soldBag.soldTo.soldAt };
       showPosReceipt(lastPosSale);
       document.getElementById('posDash')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -962,6 +966,9 @@ function renderStats() {
         <div style="flex:1;min-width:0;">
           <div class="recent-name">${escapeHtml(b.name)}${saleBalance(b) > 0 ? ` <span class="owed-tag">owes ${fmtKsh(saleBalance(b))}</span>` : ''}</div>
           <div class="recent-meta">${fmtKsh(salePrice(b))} · ${relTime(soldAt(b))}${b.soldTo?.name ? ' · ' + escapeHtml(b.soldTo.name) : ''}</div>
+        </div>
+        <div class="recent-actions">
+          <button onclick="reissueReceipt('${b.id}','${b.soldTo?.soldAt || ''}')">🧾 Receipt</button>
         </div>
       </div>`).join('')
     : '<p style="font-size:13px;color:#999;">No timestamped sales yet. Older bags marked sold before the buyer modal existed don\'t have a soldAt date.</p>';
@@ -2687,6 +2694,31 @@ document.getElementById('posPaidNone')?.addEventListener('click', () => {
   syncPaid('posPrice', 'posPaid', 'posPaidHint', 'posPaidNone');
 });
 
+// Discount: subtract from the list price (held in dataset.list) and write the net
+// into the Selling-price field, so the RECORDED salePrice is the discounted price —
+// no phantom debt. Then re-run syncPaid (thrift's 4-arg signature: no qty).
+function applyDiscount(priceId, discId, paidId, hintId, btnId) {
+  const priceEl = document.getElementById(priceId);
+  const discEl = document.getElementById(discId);
+  if (!priceEl || !discEl) return;
+  const list = parseInt(priceEl.dataset.list || priceEl.value, 10) || 0;
+  const disc = Math.max(0, parseInt(discEl.value, 10) || 0);
+  priceEl.value = Math.max(0, list - disc);
+  syncPaid(priceId, paidId, hintId, btnId);
+}
+function rebaseList(priceId, discId) {
+  const priceEl = document.getElementById(priceId);
+  const discEl = document.getElementById(discId);
+  if (!priceEl || !discEl) return;
+  if ((discEl.value || '').trim() === '' || parseInt(discEl.value, 10) === 0) priceEl.dataset.list = priceEl.value;
+}
+document.getElementById('buyerDiscount')?.addEventListener('input',
+  () => applyDiscount('buyerPrice', 'buyerDiscount', 'buyerPaid', 'buyerPaidHint', 'buyerPaidNone'));
+document.getElementById('posDiscount')?.addEventListener('input',
+  () => applyDiscount('posPrice', 'posDiscount', 'posPaid', 'posPaidHint', 'posPaidNone'));
+document.getElementById('buyerPrice')?.addEventListener('input', () => rebaseList('buyerPrice', 'buyerDiscount'));
+document.getElementById('posPrice')?.addEventListener('input', () => rebaseList('posPrice', 'posDiscount'));
+
 // ====== INSTAGRAM BULK SYNC ======
 // "Check for new posts" widget. Pulls fresh IG posts, runs them through the
 // worker's vision + text AI classifier, and shows a preview list. Owner ticks
@@ -2916,7 +2948,10 @@ function posSelectItem(id) {
   posItemId = id;
   document.getElementById('posItemSearch').value = bag.name;
   document.getElementById('posItemResults').style.display = 'none';
-  document.getElementById('posPrice').value = (bag.salePrice > 0 && bag.salePrice < bag.price) ? bag.salePrice : (bag.price || '');
+  const posPriceEl = document.getElementById('posPrice');
+  posPriceEl.value = (bag.salePrice > 0 && bag.salePrice < bag.price) ? bag.salePrice : (bag.price || '');
+  posPriceEl.dataset.list = posPriceEl.value;
+  document.getElementById('posDiscount').value = '';
   document.getElementById('posChosen').innerHTML = `Selling <strong>${escapeHtml(bag.name)}</strong> · <button type="button" id="posClearItem">change</button>`;
   document.getElementById('posChosen').style.display = '';
   document.getElementById('posSaleFields').style.display = '';
@@ -2932,15 +2967,32 @@ function posReset() {
   document.getElementById('posCustomerFields').style.display = '';
   document.querySelectorAll('#posPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
 }
+window.reissueReceipt = (bagId, soldAtVal) => {
+  const bag = bags.find(b => b.id === bagId);
+  if (!bag || !bag.soldTo || bag.soldTo.soldAt !== soldAtVal) { showToast('Could not find that sale.'); return; }
+  lastPosSale = {
+    name: bag.name, size: bag.size || '', qty: 1,
+    amount: Number(bag.soldTo.salePrice ?? bag.price ?? 0),
+    paymentMethod: bag.soldTo.paymentMethod,
+    buyerName: bag.soldTo.name || bag.soldTo.buyerName || '',
+    buyerPhone: bag.soldTo.phone || bag.soldTo.buyerPhone || '',
+    soldAt: bag.soldTo.soldAt,
+  };
+  showPosReceipt(lastPosSale);
+  document.getElementById('posDash').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showToast('Receipt ready — send it on WhatsApp or as an image below.');
+};
 function posReceiptText(s) {
-  return [`*ThriftLux* receipt`, `${s.name}`, `Total: ${fmtKsh(s.amount)}. Paid by ${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}.`, `Thank you for shopping with us!`].join('\n');
+  const discLine = s.discount > 0 ? [`Discount: ${fmtKsh(s.discount)} off (was ${fmtKsh(s.listPrice || s.amount)}).`] : [];
+  return [`*ThriftLux* receipt`, `${s.name}`, `Total: ${fmtKsh(s.amount)}. Paid by ${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}.`, ...discLine, `Thank you for shopping with us!`].join('\n');
 }
 function showPosReceipt(s) {
   document.getElementById('posSaleFields').style.display = 'none';
   document.getElementById('posChosen').style.display = 'none';
   document.getElementById('posItemSearch').value = '';
   const pay = s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
-  document.getElementById('posReceiptSummary').innerHTML = `<strong>${escapeHtml(s.name)}</strong><br>${fmtKsh(s.amount)} · paid by ${pay}`;
+  const discLine = s.discount > 0 ? `<br><span style="color:#1a7a3a;">Discount ${fmtKsh(s.discount)} off (was ${fmtKsh(s.listPrice || s.amount)})</span>` : '';
+  document.getElementById('posReceiptSummary').innerHTML = `<strong>${escapeHtml(s.name)}</strong><br>${fmtKsh(s.amount)} · paid by ${pay}${discLine}`;
   const wa = document.getElementById('posWaReceiptBtn');
   if (s.buyerPhone && s.buyerPhone.replace(/[^0-9]/g, '').length >= 9) { wa.href = `https://wa.me/${posWaPhone(s.buyerPhone)}?text=${encodeURIComponent(posReceiptText(s))}`; wa.style.display = ''; }
   else { wa.style.display = 'none'; }
@@ -3097,11 +3149,13 @@ async function recordPosSale() {
       const b = bags.find(x => x.id === targetId);
       if (!b) throw new Error('Item no longer exists — refresh admin');
       if (b.sold) throw new Error('Already sold — refresh admin');
-      amount = isNaN(priceRaw) ? (Number(b.price) || 0) : priceRaw;
+      amount = isNaN(priceRaw) ? (Number(b.price) || 0) : priceRaw; // already discounted (net)
       b.sold = true;
       // Owed feature: capture cash taken now (blank = paid in full)
       const posPaidRaw = (document.getElementById('posPaid')?.value || '').trim();
-      const soldTo = { name, phone, notes: note, soldAt, salePrice: amount, paymentMethod: posPayMethod };
+      const posDisc = Math.max(0, parseInt(document.getElementById('posDiscount')?.value, 10) || 0);
+      const posListP = parseInt(document.getElementById('posPrice')?.dataset.list, 10) || (amount + posDisc);
+      const soldTo = { name, phone, notes: note, soldAt, salePrice: amount, ...(posDisc > 0 ? { discount: posDisc, listPrice: posListP } : {}), paymentMethod: posPayMethod };
       if (posPaidRaw !== '') {
         soldTo.amountPaid = Math.min(amount, Math.max(0, parseInt(posPaidRaw, 10) || 0));
       }
@@ -3116,7 +3170,9 @@ async function recordPosSale() {
         else clients.push({ id: 'c_' + Date.now(), name: name || '', phone, note, createdAt: soldAt });
       }
     });
-    lastPosSale = { name: soldName, amount, paymentMethod: posPayMethod, buyerName: name, buyerPhone: phone, soldAt };
+    const _posDisc = Math.max(0, parseInt(document.getElementById('posDiscount')?.value, 10) || 0);
+    const _posListP = parseInt(document.getElementById('posPrice')?.dataset.list, 10) || (amount + _posDisc);
+    lastPosSale = { name: soldName, amount, discount: _posDisc, listPrice: _posListP, paymentMethod: posPayMethod, buyerName: name, buyerPhone: phone, soldAt };
     renderAll();
     showPosReceipt(lastPosSale);
     showToast(`Sold · ${fmtKsh(amount)}`);

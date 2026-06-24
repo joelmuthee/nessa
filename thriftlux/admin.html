@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#0d0d0d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=202606121001">
+<link rel="stylesheet" href="styles.css?v=20260620recentactions">
 <!-- GHL form submit captcha (enterprise reCAPTCHA v3) -->
 <script src="https://www.google.com/recaptcha/enterprise.js?render=6LeDBFwpAAAAAJe8ux9-imrqZ2ueRsEtdiWoDDpX" async defer></script>
 </head>
@@ -97,6 +97,10 @@
       <div id="posSaleFields" style="display:none;">
         <div class="pos-row">
           <div class="field"><label>Selling price (Ksh) <small style="font-weight:400;color:#999;">pre-filled from the catalog — edit if the customer bargained</small></label><input id="posPrice" type="number" min="0"></div>
+        </div>
+        <div class="field">
+          <label>Discount (Ksh) <small style="font-weight:400;color:#999;">— optional. Money off this sale, e.g. 200. Lowers the price, it is NOT a debt.</small></label>
+          <input id="posDiscount" type="number" min="0" step="50" placeholder="0">
         </div>
         <div class="field">
           <label>Amount paid now (Ksh) <small style="font-weight:400;color:#999;">leave blank if paid in full</small></label>
@@ -560,6 +564,10 @@
       <input id="buyerPrice" type="number" min="0" step="50">
     </div>
     <div class="field">
+      <label>Discount (Ksh) <small style="font-weight:400;color:#999;">— optional. Money off this sale, e.g. 200. Lowers the price, it is NOT a debt.</small></label>
+      <input id="buyerDiscount" type="number" min="0" step="50" placeholder="0">
+    </div>
+    <div class="field">
       <label>Existing customer <small style="font-weight:400;color:#999;">search a saved customer, or just type a new one below</small></label>
       <input id="buyerCustSearch" type="search" placeholder="Search saved customers by name or phone…" autocomplete="off">
       <div id="buyerCustResults" class="client-item-results" style="display:none;"></div>
@@ -812,6 +820,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=20260618expcol"></script>
+<script src="admin.js?v=20260624discount"></script>
 </body>
 </html>
