@@ -954,24 +954,35 @@ function renderStats() {
       </div>`).join('')
     : '<p style="font-size:13px;color:#999;">No sales recorded yet. Mark a bag as sold to see category breakdown here.</p>';
 
-  // Recent sales (last 8 with a soldAt)
-  const recent = bags.filter(b => isSold(b) && soldAt(b))
-    .map(b => ({ b, t: new Date(soldAt(b)).getTime() }))
+  // Recent sales (last 8). Show ANY bag marked sold — including ones flipped to
+  // sold from the Instagram caption, which have no buyer/soldAt — so a sale
+  // never silently disappears from the list. Order by the sale date when we have
+  // one, else by when the bag was added (best available). Bags with no sale
+  // record show the listed price + a "marked sold" note and no Receipt button
+  // (there's nothing recorded to reprint).
+  const recent = bags.filter(b => isSold(b))
+    .map(b => ({ b, t: new Date(soldAt(b) || b.createdAt || 0).getTime() }))
     .sort((a, b) => b.t - a.t).slice(0, 8);
   const rs = document.getElementById('recentSales');
   if (rs) rs.innerHTML = recent.length
-    ? recent.map(({ b }) => `
+    ? recent.map(({ b }) => {
+        const hasSale = !!b.soldTo;
+        const meta = hasSale
+          ? `${fmtKsh(salePrice(b))} · ${relTime(soldAt(b) || b.createdAt)}${b.soldTo.name ? ' · ' + escapeHtml(b.soldTo.name) : ''}`
+          : `${fmtKsh(salePrice(b))} · <span style="color:#999;">marked sold · no buyer recorded</span>`;
+        const owes = hasSale && saleBalance(b) > 0 ? ` <span class="owed-tag">owes ${fmtKsh(saleBalance(b))}</span>` : '';
+        return `
       <div class="recent-row">
         <img src="${b.image}" alt="">
         <div style="flex:1;min-width:0;">
-          <div class="recent-name">${escapeHtml(b.name)}${saleBalance(b) > 0 ? ` <span class="owed-tag">owes ${fmtKsh(saleBalance(b))}</span>` : ''}</div>
-          <div class="recent-meta">${fmtKsh(salePrice(b))} · ${relTime(soldAt(b))}${b.soldTo?.name ? ' · ' + escapeHtml(b.soldTo.name) : ''}</div>
+          <div class="recent-name">${escapeHtml(b.name)}${owes}</div>
+          <div class="recent-meta">${meta}</div>
         </div>
         <div class="recent-actions">
-          <button onclick="reissueReceipt('${b.id}','${b.soldTo?.soldAt || ''}')">🧾 Receipt</button>
+          ${hasSale ? `<button onclick="reissueReceipt('${b.id}','${b.soldTo.soldAt || ''}')">🧾 Receipt</button>` : ''}
         </div>
-      </div>`).join('')
-    : '<p style="font-size:13px;color:#999;">No timestamped sales yet. Older bags marked sold before the buyer modal existed don\'t have a soldAt date.</p>';
+      </div>`; }).join('')
+    : '<p style="font-size:13px;color:#999;">No sales yet.</p>';
 }
 
 // ==================== INVENTORY DASHBOARD ====================
