@@ -357,7 +357,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       // which confuses buyers (rejected on Ryker/Nzuri too). The wa.me message already
       // appends the /share/<id> OG page, so WhatsApp still renders the preview card.
       track('itemEnquiries', id);
-      gaEvent('enquire', { item_id: id });
+      gaEvent('whatsapp_click', { item_id: id });
     }
     if (a.dataset.action === 'ig-click') track('itemIgClicks', id);
   });
