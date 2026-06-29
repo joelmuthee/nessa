@@ -217,6 +217,20 @@ function backfill() {
     if (!Array.isArray(b.images)) b.images = [];
     if (!b.createdAt) b.createdAt = b.soldTo?.soldAt || new Date().toISOString();
     if (!b.instagramUrl && b.reel) b.instagramUrl = b.reel;
+    // Self-heal: a bag flipped to sold from the Instagram caption has no sale
+    // record at all (no buyer/price/date), so it never counted as a sale. Give
+    // it a minimal one — date ≈ when it was listed (createdAt, the best stable
+    // guess), price = the listed price — flagged source:'ig' so the UI can show
+    // it's an Instagram-marked sale with no captured buyer/exact figure. Runs on
+    // every load (idempotent: only stamps when soldTo is missing) and persists
+    // on the next save, so existing AND future IG-marked bags become real sales.
+    if (b.sold && !b.soldTo) {
+      b.soldTo = {
+        soldAt: b.createdAt || new Date().toISOString(),
+        salePrice: Number((b.salePrice && b.salePrice < b.price) ? b.salePrice : b.price) || 0,
+        source: 'ig',
+      };
+    }
   });
 }
 
@@ -967,8 +981,9 @@ function renderStats() {
   if (rs) rs.innerHTML = recent.length
     ? recent.map(({ b }) => {
         const hasSale = !!b.soldTo;
+        const igMark = hasSale && b.soldTo.source === 'ig';
         const meta = hasSale
-          ? `${fmtKsh(salePrice(b))} · ${relTime(soldAt(b) || b.createdAt)}${b.soldTo.name ? ' · ' + escapeHtml(b.soldTo.name) : ''}`
+          ? `${fmtKsh(salePrice(b))} · ${relTime(soldAt(b) || b.createdAt)}${b.soldTo.name ? ' · ' + escapeHtml(b.soldTo.name) : (igMark ? ' · <span style="color:#999;">from Instagram</span>' : '')}`
           : `${fmtKsh(salePrice(b))} · <span style="color:#999;">marked sold · no buyer recorded</span>`;
         const owes = hasSale && saleBalance(b) > 0 ? ` <span class="owed-tag">owes ${fmtKsh(saleBalance(b))}</span>` : '';
         return `
