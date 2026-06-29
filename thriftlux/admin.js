@@ -218,19 +218,13 @@ function backfill() {
     if (!b.createdAt) b.createdAt = b.soldTo?.soldAt || new Date().toISOString();
     if (!b.instagramUrl && b.reel) b.instagramUrl = b.reel;
     // Self-heal: a bag flipped to sold from the Instagram caption has no sale
-    // record at all (no buyer/price/date), so it never counted as a sale. Give
-    // it a minimal one — date ≈ when it was listed (createdAt, the best stable
-    // guess), price = the listed price — flagged source:'ig' so the UI can show
-    // it's an Instagram-marked sale with no captured buyer/exact figure. Runs on
-    // every load (idempotent: only stamps when soldTo is missing) and persists
-    // on the next save, so existing AND future IG-marked bags become real sales.
-    if (b.sold && !b.soldTo) {
-      b.soldTo = {
-        soldAt: b.createdAt || new Date().toISOString(),
-        salePrice: Number((b.salePrice && b.salePrice < b.price) ? b.salePrice : b.price) || 0,
-        source: 'ig',
-      };
-    }
+    // record, so it never counted as a sale. Stamp a MINIMAL record flagged
+    // source:'ig' — but do NOT invent a sale date or price we don't have. The
+    // sale is real (counts in the all-time total at the listed price via the
+    // salePrice() fallback), but its exact date/buyer/amount were never captured,
+    // so it stays OUT of the per-day/week revenue (no soldAt to bucket it by).
+    // Idempotent (only when soldTo missing); persists on next save.
+    if (b.sold && !b.soldTo) b.soldTo = { source: 'ig' };
   });
 }
 
@@ -981,11 +975,19 @@ function renderStats() {
   if (rs) rs.innerHTML = recent.length
     ? recent.map(({ b }) => {
         const hasSale = !!b.soldTo;
-        const igMark = hasSale && b.soldTo.source === 'ig';
-        const meta = hasSale
-          ? `${fmtKsh(salePrice(b))} · ${relTime(soldAt(b) || b.createdAt)}${b.soldTo.name ? ' · ' + escapeHtml(b.soldTo.name) : (igMark ? ' · <span style="color:#999;">from Instagram</span>' : '')}`
-          : `${fmtKsh(salePrice(b))} · <span style="color:#999;">marked sold · no buyer recorded</span>`;
+        // An IG-marked sale (source:'ig') has no captured date/buyer/exact
+        // amount — only that the bag sold. Don't show a sale date we don't have
+        // (it would be the listing date masquerading as the sale date) and don't
+        // offer a Receipt (nothing real to reprint). The listed price is shown
+        // as the best-available figure.
+        const igMark = hasSale && b.soldTo.source === 'ig' && !b.soldTo.soldAt;
+        const meta = igMark
+          ? `${fmtKsh(salePrice(b))} · <span style="color:#999;">sold via Instagram · date &amp; buyer not recorded</span>`
+          : hasSale
+            ? `${fmtKsh(salePrice(b))} · ${relTime(soldAt(b) || b.createdAt)}${b.soldTo.name ? ' · ' + escapeHtml(b.soldTo.name) : ''}`
+            : `${fmtKsh(salePrice(b))} · <span style="color:#999;">marked sold · no buyer recorded</span>`;
         const owes = hasSale && saleBalance(b) > 0 ? ` <span class="owed-tag">owes ${fmtKsh(saleBalance(b))}</span>` : '';
+        const canReceipt = hasSale && !igMark && b.soldTo.soldAt;
         return `
       <div class="recent-row">
         <img src="${b.image}" alt="">
@@ -994,7 +996,7 @@ function renderStats() {
           <div class="recent-meta">${meta}</div>
         </div>
         <div class="recent-actions">
-          ${hasSale ? `<button onclick="reissueReceipt('${b.id}','${b.soldTo.soldAt || ''}')">🧾 Receipt</button>` : ''}
+          ${canReceipt ? `<button onclick="reissueReceipt('${b.id}','${b.soldTo.soldAt}')">🧾 Receipt</button>` : ''}
         </div>
       </div>`; }).join('')
     : '<p style="font-size:13px;color:#999;">No sales yet.</p>';
