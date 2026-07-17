@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#0d0d0d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260629fold">
+<link rel="stylesheet" href="styles.css?v=202607171958">
 <!-- GHL form submit captcha (enterprise reCAPTCHA v3) -->
 <script src="https://www.google.com/recaptcha/enterprise.js?render=6LeDBFwpAAAAAJe8ux9-imrqZ2ueRsEtdiWoDDpX" async defer></script>
 </head>
@@ -170,6 +170,14 @@
         <div class="stat-sub" id="statAllNetSub" style="display:none;">Expenses <strong id="statAllExpenses">Ksh 0</strong> · Net <strong id="statAllNetProfit">Ksh 0</strong></div>
       </div>
     </section>
+    <div class="range-picker" style="margin:16px 0 4px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+        <div class="field" style="margin:0;"><label style="font-size:12px;">From</label><input type="date" id="rangeFrom" style="max-width:180px;"></div>
+        <div class="field" style="margin:0;"><label style="font-size:12px;">To</label><input type="date" id="rangeTo" style="max-width:180px;"></div>
+        <button class="btn-admin" type="button" id="rangeClearBtn" style="font-size:12px;padding:7px 12px;">Clear</button>
+      </div>
+      <div id="rangeResult" style="margin-top:12px;"></div>
+    </div>
     <div class="dash-grid">
       <div class="dash-card">
         <h3>Top categories</h3>
@@ -814,6 +822,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=20260629nofakedate"></script>
+<script src="admin.js?v=202607171958"></script>
 </body>
 </html>
