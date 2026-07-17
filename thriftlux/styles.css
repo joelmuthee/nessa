@@ -1783,6 +1783,10 @@ summary.manual-entry-divider:active .me-pill { transform: translateY(0); }
   background: #faf6ec; border: 1px solid #e8dcbf; border-radius: 12px;
   padding: 2px 9px; white-space: normal; overflow-wrap: anywhere;
 }
+/* Bulk-sell editable rows (name + per-bag price input), thrift palette. */
+.bulksell-row { flex: 1 1 100%; box-sizing: border-box; display: flex; align-items: center; gap: 8px; background: #faf6ec; border: 1px solid #e8dcbf; border-radius: 10px; padding: 5px 9px; }
+.bulksell-row-name { flex: 1 1 auto; min-width: 0; font-size: 12px; color: #6b5b3a; overflow-wrap: anywhere; }
+.bulksell-row .bsr-price { width: 82px; flex: 0 0 auto; box-sizing: border-box; font-size: 12px; padding: 3px 6px; border: 1px solid #e8dcbf; border-radius: 6px; background: #fff; color: #6b5b3a; text-align: right; }
 .client-row-actions { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
 @media (max-width: 600px) {
   .client-row { flex-direction: column; align-items: stretch; }

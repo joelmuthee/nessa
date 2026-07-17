@@ -897,6 +897,49 @@ document.getElementById('buyerCancelBtn').addEventListener('click', closeBuyerMo
 buyerModal.addEventListener('click', e => { if (e.target === buyerModal) closeBuyerModal(); });
 
 // ==================== SALES DASHBOARD ====================
+// Custom date-range sales (thrift): owner picks From/To, sees bags sold + revenue
+// (+ profit) for that period. Thrift = one sale per bag via soldTo; dateless
+// source:'ig' sales carry no sale date so they're excluded from any date range.
+function renderCustomRange() {
+  const el = document.getElementById('rangeResult');
+  if (!el) return;
+  const fromV = document.getElementById('rangeFrom')?.value;
+  const toV = document.getElementById('rangeTo')?.value;
+  if (!fromV || !toV) {
+    el.innerHTML = '<span style="color:var(--ink-faint);font-size:13px;">Pick a start and end date to see sales for that period.</span>';
+    return;
+  }
+  const from = new Date(fromV + 'T00:00:00').getTime();
+  const to = new Date(toV + 'T23:59:59.999').getTime();
+  if (from > to) { el.innerHTML = '<span style="color:#b00020;font-size:13px;">The "From" date is after the "To" date.</span>'; return; }
+  let count = 0, revenue = 0, profit = 0, costKnown = 0;
+  for (const b of bags) {
+    if (!isSold(b)) continue;
+    const at = soldAt(b) ? new Date(soldAt(b)).getTime() : null;
+    if (at === null || at < from || at > to) continue; // dateless (source:'ig') + out-of-range excluded
+    const price = salePrice(b);
+    count++; revenue += price;
+    if (b.cost) { profit += price - b.cost; costKnown++; }
+  }
+  const fmtD = v => new Date(v + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const profitLine = costKnown > 0
+    ? `<div class="stat-sub" style="color:#2e7d32;font-weight:600;">Profit ${fmtKsh(Math.round(profit))}${costKnown < count ? ` <span style="opacity:.7;font-weight:400;">· from ${costKnown}/${count} with cost</span>` : ''}</div>`
+    : '';
+  el.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">${fmtD(fromV)} to ${fmtD(toV)}</div>
+      <div class="stat-value">${fmtKsh(revenue)}</div>
+      <div class="stat-sub">${count} bag${count === 1 ? '' : 's'} sold</div>${profitLine}
+    </div>`;
+}
+document.getElementById('rangeFrom')?.addEventListener('change', renderCustomRange);
+document.getElementById('rangeTo')?.addEventListener('change', renderCustomRange);
+document.getElementById('rangeClearBtn')?.addEventListener('click', () => {
+  const f = document.getElementById('rangeFrom'), t = document.getElementById('rangeTo');
+  if (f) f.value = ''; if (t) t.value = '';
+  renderCustomRange();
+});
+
 function renderStats() {
   const now = Date.now();
   const DAY = 86400000;
@@ -947,6 +990,8 @@ function renderStats() {
       netSub.style.display = 'none';
     }
   }
+
+  renderCustomRange();
 
   // Top categories
   const byCat = {};
@@ -1871,7 +1916,7 @@ window.bulkSell = () => {
   document.getElementById('bulkSellTitle').textContent = `Sell ${list.length} bag${list.length === 1 ? '' : 's'} to one customer`;
   document.getElementById('bulkSellItems').innerHTML = list.map(b => {
     const p = bagCatalogPrice(b);
-    return `<span class="client-item">${escapeHtml(b.name)}${p ? ' · ' + fmtKsh(p) : ''}</span>`;
+    return `<div class="bulksell-row"><span class="bulksell-row-name">${escapeHtml(b.name)}</span><input class="bsr-price" type="number" min="0" inputmode="numeric" data-id="${b.id}" value="${p}" aria-label="Sale price for ${escapeHtml(b.name)}"></div>`;
   }).join('');
   document.getElementById('bulkSellTotal').textContent = `Total: ${fmtKsh(bulkSellTotalAmt)} · ${list.length} bag${list.length === 1 ? '' : 's'}`;
   document.getElementById('bulkSellName').value = '';
@@ -1898,6 +1943,23 @@ function updateBulkSellHint() {
   hint.style.display = bal > 0 ? '' : 'none';
   if (bal > 0) hint.textContent = `Balance owing: ${fmtKsh(bal)}`;
 }
+// Editing a per-bag price re-totals the lot live (so the Total + owing hint stay right).
+function recalcBulkTotal() {
+  const list = bulkSellableSelected();
+  let t = 0;
+  for (const b of list) {
+    const el = document.querySelector(`.bsr-price[data-id="${b.id}"]`);
+    const v = el ? parseInt(el.value, 10) : NaN;
+    t += (isNaN(v) || v < 0) ? bagCatalogPrice(b) : v;
+  }
+  bulkSellTotalAmt = t;
+  const totalEl = document.getElementById('bulkSellTotal');
+  if (totalEl) totalEl.textContent = `Total: ${fmtKsh(t)} · ${list.length} bag${list.length === 1 ? '' : 's'}`;
+  updateBulkSellHint();
+}
+document.getElementById('bulkSellItems')?.addEventListener('input', e => {
+  if (e.target.classList && e.target.classList.contains('bsr-price')) recalcBulkTotal();
+});
 async function commitBulkSold(withBuyer) {
   const initial = bulkSellableSelected();
   if (!initial.length) { closeBulkSell(); return; }
@@ -1914,6 +1976,13 @@ async function commitBulkSold(withBuyer) {
   const paidRaw = (document.getElementById('bulkSellPaid').value || '').trim();
   const hasPartial = paidRaw !== '';
   let remaining = hasPartial ? Math.max(0, parseInt(paidRaw, 10) || 0) : Infinity;
+  // Snapshot the edited per-bag prices from the DOM before the modal closes.
+  const priceById = {};
+  initial.forEach(b => {
+    const el = document.querySelector(`.bsr-price[data-id="${b.id}"]`);
+    const v = el ? parseInt(el.value, 10) : NaN;
+    priceById[b.id] = (isNaN(v) || v < 0) ? bagCatalogPrice(b) : v;
+  });
   closeBulkSell();
   const soldAt = new Date().toISOString();
   let soldList = [];
@@ -1923,7 +1992,7 @@ async function commitBulkSold(withBuyer) {
       soldList = [];
       const ordered = bags.filter(b => ids.has(b.id) && !b.sold); // re-resolve against fresh data
       for (const b of ordered) {
-        const price = bagCatalogPrice(b);
+        const price = priceById[b.id] != null ? priceById[b.id] : bagCatalogPrice(b);
         const soldTo = withBuyer
           ? { ...buyerInfo, soldAt, salePrice: price, paymentMethod: payMethod }
           : { soldAt, salePrice: price, paymentMethod: payMethod };
