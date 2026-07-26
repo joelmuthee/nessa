@@ -2011,6 +2011,17 @@ async function commitBulkSold(withBuyer) {
     const owed = hasPartial ? Math.max(0, total - Math.max(0, parseInt(paidRaw, 10) || 0)) : 0;
     showToast(`Sold ${soldList.length} bag${soldList.length === 1 ? '' : 's'}${who} · ${fmtKsh(total)}${owed > 0 ? ` · ${fmtKsh(owed)} owed` : ''}`);
     if (withBuyer && buyerInfo.phone) sendBuyerToGHLBundle(buyerInfo, soldList, total);
+    // Full multi-item receipt right away — lists EVERY bag sold to this customer.
+    if (soldList.length) {
+      const paidTotal = hasPartial ? Math.min(total, Math.max(0, parseInt(paidRaw, 10) || 0)) : total;
+      lastPosSale = {
+        lines: soldList.map(b => ({ name: b.name, size: b.size || '', color: b.soldTo.color || '', qty: 1, amount: Number(b.soldTo.salePrice) || 0, listPrice: b.soldTo.listPrice || b.soldTo.salePrice, discount: b.soldTo.discount || 0 })),
+        total, paid: paidTotal, balance: Math.max(0, total - paidTotal),
+        paymentMethod: payMethod, buyerName: withBuyer ? buyerInfo.name : '', buyerPhone: withBuyer ? buyerInfo.phone : '', soldAt,
+      };
+      showPosReceipt(lastPosSale);
+      document.getElementById('posDash').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   } catch (err) { showToast('Sync failed: ' + err.message); }
 }
 async function sendBuyerToGHLBundle(buyer, list, total) {
@@ -3065,31 +3076,69 @@ function posReset() {
   document.querySelectorAll('#posPay .pos-pay-btn').forEach(b => b.classList.toggle('active', b.dataset.pay === 'mpesa'));
 }
 window.reissueReceipt = (bagId, soldAtVal) => {
-  const bag = bags.find(b => b.id === bagId);
-  if (!bag || !bag.soldTo || bag.soldTo.soldAt !== soldAtVal) { showToast('Could not find that sale.'); return; }
+  // A bulk "sell to one customer" marks several bags sold in one go — each its own
+  // soldTo, all sharing the same soldAt + buyer. Rebuild the WHOLE receipt (every
+  // bag), not just the clicked one, so the image/WhatsApp receipt lists them all.
+  const anchor = bags.find(b => b.id === bagId);
+  if (!anchor || !anchor.soldTo || anchor.soldTo.soldAt !== soldAtVal) { showToast('Could not find that sale.'); return; }
+  const bn = anchor.soldTo.name || anchor.soldTo.buyerName || '';
+  const bp = anchor.soldTo.phone || anchor.soldTo.buyerPhone || '';
+  const sameBuyer = st => (st.name || st.buyerName || '') === bn && (st.phone || st.buyerPhone || '') === bp;
+  const group = bags.filter(b => b.soldTo && b.soldTo.soldAt === soldAtVal && sameBuyer(b.soldTo));
+  const src = group.length ? group : [anchor];
+  let total = 0, paid = 0;
+  const lines = src.map(b => {
+    const amount = Number(b.soldTo.salePrice ?? b.price ?? 0);
+    total += amount;
+    paid += Number(b.soldTo.amountPaid != null ? b.soldTo.amountPaid : amount);
+    return { name: b.name, size: b.size || '', color: b.soldTo.color || '', qty: 1, amount, listPrice: b.soldTo.listPrice || amount, discount: b.soldTo.discount || 0 };
+  });
   lastPosSale = {
-    name: bag.name, size: bag.size || '', qty: 1,
-    amount: Number(bag.soldTo.salePrice ?? bag.price ?? 0),
-    paymentMethod: bag.soldTo.paymentMethod,
-    buyerName: bag.soldTo.name || bag.soldTo.buyerName || '',
-    buyerPhone: bag.soldTo.phone || bag.soldTo.buyerPhone || '',
-    soldAt: bag.soldTo.soldAt,
+    lines, total, paid, balance: Math.max(0, total - paid),
+    paymentMethod: anchor.soldTo.paymentMethod, buyerName: bn, buyerPhone: bp, soldAt: soldAtVal,
   };
   showPosReceipt(lastPosSale);
   document.getElementById('posDash').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  showToast('Receipt ready — send it on WhatsApp or as an image below.');
+  showToast(lines.length > 1 ? `Receipt for ${lines.length} items ready — send it below.` : 'Receipt ready — send it on WhatsApp or as an image below.');
 };
+// Normalise any receipt to a lines[] array — supports the single-item shape
+// ({name,size,qty,amount,...}) AND a multi-line shape ({lines:[...],total}), so a
+// bulk "sell to one customer" (many soldTo bags sharing one soldAt+buyer) prints
+// ONE receipt listing every bag. Back-compat: single sales keep the old shape.
+function rcptLines(s) {
+  if (Array.isArray(s.lines) && s.lines.length) return s.lines;
+  return [{ name: s.name, size: s.size || '', color: s.color || '', qty: Number(s.qty) || 1, amount: Number(s.amount) || 0, listPrice: s.listPrice || s.amount, discount: s.discount || 0 }];
+}
+function rcptTotal(s) {
+  if (typeof s.total === 'number') return s.total;
+  return rcptLines(s).reduce((a, l) => a + (Number(l.amount) || 0) * (Number(l.qty) || 1), 0);
+}
+function rcptDisc(s) {
+  return rcptLines(s).reduce((a, l) => a + (l.discount > 0 ? ((l.listPrice || l.amount) - l.amount) * (Number(l.qty) || 1) : 0), 0);
+}
 function posReceiptText(s) {
-  const discLine = s.discount > 0 ? [`Discount: ${fmtKsh(s.discount)} off (was ${fmtKsh(s.listPrice || s.amount)}).`] : [];
-  return [`*ThriftLux* receipt`, `${s.name}`, `Total: ${fmtKsh(s.amount)}. Paid by ${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}.`, ...discLine, `Thank you for shopping with us!`].join('\n');
+  const lines = rcptLines(s), total = rcptTotal(s), disc = rcptDisc(s);
+  const body = lines.map(l => {
+    const parts = [l.name]; if (l.size) parts.push(`Size ${l.size}`); if (l.color) parts.push(l.color);
+    return `${parts.join(' · ')} — ${fmtKsh((Number(l.amount) || 0) * (Number(l.qty) || 1))}`;
+  });
+  const discLine = disc > 0 ? [`Discount: ${fmtKsh(disc)} off (was ${fmtKsh(total + disc)}).`] : [];
+  const balLine = s.balance > 0 ? [`Paid now: ${fmtKsh(s.paid)}. Balance owing: ${fmtKsh(s.balance)}.`] : [];
+  return [`*ThriftLux* receipt`, ...body, `Total: ${fmtKsh(total)}. Paid by ${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}.`, ...discLine, ...balLine, `Thank you for shopping with us!`].join('\n');
 }
 function showPosReceipt(s) {
   document.getElementById('posSaleFields').style.display = 'none';
   document.getElementById('posChosen').style.display = 'none';
   document.getElementById('posItemSearch').value = '';
   const pay = s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
-  const discLine = s.discount > 0 ? `<br><span style="color:#1a7a3a;">Discount ${fmtKsh(s.discount)} off (was ${fmtKsh(s.listPrice || s.amount)})</span>` : '';
-  document.getElementById('posReceiptSummary').innerHTML = `<strong>${escapeHtml(s.name)}</strong><br>${fmtKsh(s.amount)} · paid by ${pay}${discLine}`;
+  const _lines = rcptLines(s), _total = rcptTotal(s), _disc = rcptDisc(s);
+  const _items = _lines.map(l => {
+    const sz = l.size ? ` · ${escapeHtml(l.size)}` : ''; const col = l.color ? ` · ${escapeHtml(l.color)}` : '';
+    return `<strong>${escapeHtml(l.name)}</strong>${sz}${col} · ${fmtKsh((Number(l.amount) || 0) * (Number(l.qty) || 1))}`;
+  }).join('<br>');
+  const discLine = _disc > 0 ? `<br><span style="color:#1a7a3a;">Discount ${fmtKsh(_disc)} off (was ${fmtKsh(_total + _disc)})</span>` : '';
+  const balLine = s.balance > 0 ? `<br><span class="owed-amount">Paid ${fmtKsh(s.paid)} · still owes ${fmtKsh(s.balance)}</span>` : '';
+  document.getElementById('posReceiptSummary').innerHTML = `${_items}<br><strong>Total ${fmtKsh(_total)}</strong> · paid by ${pay}${discLine}${balLine}`;
   const wa = document.getElementById('posWaReceiptBtn');
   if (s.buyerPhone && s.buyerPhone.replace(/[^0-9]/g, '').length >= 9) { wa.href = `https://wa.me/${posWaPhone(s.buyerPhone)}?text=${encodeURIComponent(posReceiptText(s))}`; wa.style.display = ''; }
   else { wa.style.display = 'none'; }
@@ -3100,14 +3149,15 @@ function showPosReceipt(s) {
 function posPrintReceipt() {
   if (!lastPosSale) return;
   const s = lastPosSale, d = new Date(s.soldAt);
+  const _rows = rcptLines(s).map(l => `<div class="rcpt-row"><span>${escapeHtml(l.name)}${l.size ? ` · ${escapeHtml(l.size)}` : ''}</span><span>${fmtKsh((Number(l.amount) || 0) * (Number(l.qty) || 1))}</span></div>`).join('');
   document.getElementById('posReceiptPrint').innerHTML = `
     <div class="rcpt">
       <div class="rcpt-head">ThriftLux</div>
       <div class="rcpt-sub">0705 044 940</div>
       <hr>
-      <div class="rcpt-row"><span>${escapeHtml(s.name)}</span><span>${fmtKsh(s.amount)}</span></div>
+      ${_rows}
       <hr>
-      <div class="rcpt-row rcpt-total"><span>TOTAL</span><span>${fmtKsh(s.amount)}</span></div>
+      <div class="rcpt-row rcpt-total"><span>TOTAL</span><span>${fmtKsh(rcptTotal(s))}</span></div>
       <div class="rcpt-row"><span>Paid by</span><span>${s.paymentMethod === 'mpesa' ? 'M-Pesa' : 'Cash'}</span></div>
       <div class="rcpt-date">${d.toLocaleString('en-GB')}</div>
       <div class="rcpt-foot">Thank you for shopping with us!</div>
@@ -3132,15 +3182,11 @@ function loadReceiptLogo() {
 }
 function buildReceiptCanvas(s, logoImg, B) {
   const SCALE = 3, W = 620, M = 44;
-  const qty = Number(s.qty) || 1;
-  const total = (Number(s.amount) || 0) * qty;
+  const lines = rcptLines(s);
+  const total = rcptTotal(s);
   const hasBal = s.balance > 0;
-  const detail = [];
-  if (s.size) detail.push((B.sizePrefix || '') + s.size);
-  if (s.size || qty > 1) detail.push(`${qty} × ${fmtKsh(s.amount)}`);
-  const subLine = detail.join(' · ');
   const seg = { top: 34, logo: logoImg ? 132 : 88, caption: 30, addr: B.addr.length > 1 ? 46 : 30, div1: 26,
-    item: subLine ? 64 : 44, div2: 26, total: 52, cust: s.buyerName ? 34 : 0, paid: 34, bal: hasBal ? 70 : 0, date: 38, foot: 60, bottom: 30 };
+    items: lines.length * 48 + 16, div2: 26, total: 52, cust: s.buyerName ? 34 : 0, paid: 34, bal: hasBal ? 70 : 0, date: 38, foot: 60, bottom: 30 };
   const H = Object.values(seg).reduce((a, b) => a + b, 0);
   const c = document.createElement('canvas');
   c.width = W * SCALE; c.height = H * SCALE;
@@ -3159,12 +3205,19 @@ function buildReceiptCanvas(s, logoImg, B) {
   x.fillStyle = B.faint; x.font = '13px Arial'; B.addr.forEach((line, i) => x.fillText(line, W / 2, y + i * 18)); y += seg.addr;
   const div = () => { x.strokeStyle = B.line; x.lineWidth = 1; x.beginPath(); x.moveTo(M, y); x.lineTo(W - M, y); x.stroke(); };
   div(); y += seg.div1;
-  x.textAlign = 'left'; x.fillStyle = B.ink; x.font = '600 18px Arial'; x.fillText(trunc(s.name, 32), M, y + 6);
-  if (subLine) {
-    x.fillStyle = B.faint; x.font = '14px Arial'; x.fillText(subLine, M, y + 30);
-    x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 18px Arial'; x.fillText(fmtKsh(total), W - M, y + 30);
-  } else { x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 18px Arial'; x.fillText(fmtKsh(total), W - M, y + 6); }
-  y += seg.item;
+  lines.forEach(l => {
+    const lqty = Number(l.qty) || 1;
+    const detail = [];
+    if (l.size) detail.push((B.sizePrefix || '') + l.size);
+    if (l.color) detail.push(l.color);
+    if (l.size || l.color || lqty > 1) detail.push(`${lqty} × ${fmtKsh(l.amount)}`);
+    const subLine = detail.join(' · ');
+    x.textAlign = 'left'; x.fillStyle = B.ink; x.font = '600 17px Arial'; x.fillText(trunc(l.name, 30), M, y + 6);
+    if (subLine) { x.fillStyle = B.faint; x.font = '13px Arial'; x.fillText(trunc(subLine, 42), M, y + 26); }
+    x.textAlign = 'right'; x.fillStyle = B.ink; x.font = '600 17px Arial'; x.fillText(fmtKsh((Number(l.amount) || 0) * lqty), W - M, y + 14);
+    y += 48;
+  });
+  y += 16;
   x.textAlign = 'left'; div(); y += seg.div2;
   x.fillStyle = B.ink; x.font = '700 22px Arial'; x.fillText('TOTAL', M, y + 8);
   x.textAlign = 'right'; x.fillStyle = B.goldDeep; x.font = '700 24px Arial'; x.fillText(fmtKsh(total), W - M, y + 8); y += seg.total;
