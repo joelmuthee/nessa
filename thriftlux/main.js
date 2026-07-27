@@ -383,8 +383,65 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       setTimeout(() => btn.classList.remove('pop'), 350);
     }
     saveLikedSet(liked);
+    updateWlCount();
     const countEl = btn.querySelector('.like-count');
     if (countEl) countEl.textContent = bagLikeCount(id);
+  });
+
+  // ----- Multi-item wishlist (reuses the liked set as the saved list) -----
+  function updateWlCount() {
+    const n = getLikedSet().size;
+    const btn = document.getElementById('wishlistBtn');
+    if (btn) { const c = btn.querySelector('.wl-count'); if (c) c.textContent = n || ''; btn.classList.toggle('has-items', n > 0); }
+    const bar = document.getElementById('wlBar');
+    if (bar) {
+      bar.querySelector('.wl-bar-n').textContent = n;
+      bar.querySelector('.wl-bar-count').childNodes[1].textContent = n === 1 ? ' bag picked' : ' bags picked';
+      bar.hidden = n === 0;
+    }
+  }
+  function openWishlist() {
+    const modal = document.getElementById('wishlistModal'); if (!modal) return;
+    const body = document.getElementById('wishlistBody');
+    const saved = bags.filter(b => getLikedSet().has(b.id));
+    if (!saved.length) {
+      body.innerHTML = '<p style="text-align:center;color:#999;padding:24px 0;">No bags picked yet. Tap the ♡ on any bag to add it here, then check availability of them all in one WhatsApp message.</p>';
+    } else {
+      body.innerHTML = saved.map(b => `
+        <div class="wl-row">
+          <img src="${b.image}?${IMG_VERSION}" alt="${escapeHtml(b.name)}">
+          <div class="wl-row-body"><div class="wl-row-name">${escapeHtml(b.name)}</div><div class="wl-row-meta">${b.price > 0 ? fmtPrice(b.price) : 'Price on request'}</div></div>
+          <button class="wl-remove" data-remove="${escapeHtml(b.id)}" aria-label="Remove">&times;</button>
+        </div>`).join('');
+    }
+    document.getElementById('wishlistEnquireAll').style.display = saved.length ? 'inline-flex' : 'none';
+    modal.style.display = 'flex'; document.body.style.overflow = 'hidden';
+  }
+  function closeWishlist() {
+    const modal = document.getElementById('wishlistModal'); if (!modal) return;
+    modal.style.display = 'none'; document.body.style.overflow = '';
+  }
+  document.getElementById('wishlistBtn')?.addEventListener('click', e => { e.preventDefault(); openWishlist(); });
+  document.getElementById('wlBar')?.addEventListener('click', () => openWishlist());
+  document.getElementById('wishlistClose')?.addEventListener('click', closeWishlist);
+  document.getElementById('wishlistModal')?.addEventListener('click', e => {
+    if (e.target.id === 'wishlistModal') return closeWishlist();
+    const rm = e.target.closest('[data-remove]');
+    if (rm) { const s = getLikedSet(); s.delete(rm.dataset.remove); saveLikedSet(s); openWishlist(); updateWlCount(); render(); }
+  });
+  document.getElementById('wishlistEnquireAll')?.addEventListener('click', e => {
+    e.preventDefault();
+    const saved = bags.filter(b => getLikedSet().has(b.id));
+    if (!saved.length) return;
+    const phone = settings.whatsappNumber || '254705044940';
+    // Each bag carries its /share/<id> page so ThriftLux can open the exact bag.
+    const lines = saved.map((b, idx) => {
+      const price = b.price > 0 ? ' (' + fmtPrice(b.price) + ')' : '';
+      const link = b.id ? `\n${SHARE_BASE}${encodeURIComponent(b.id)}` : '';
+      return `${idx + 1}. *${b.name}*${price}${link}`;
+    });
+    const msg = `Hi Venessa! I'd like to check availability of these bags on ThriftLux:\n\n${lines.join('\n\n')}\n\nAre they available?`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   });
 
   // ----- Lightbox -----
@@ -479,6 +536,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   if (suspended) { showSuspended(); return; }
   renderCategoryPills();
   render();
+  updateWlCount();
 })();
 
 // ----- Back to top -----

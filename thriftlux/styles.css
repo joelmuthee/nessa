@@ -709,6 +709,39 @@ img { max-width: 100%; display: block; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .modal-card { background: #fff; border-radius: 14px; padding: 28px; max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .modal-card h3 { font-family: var(--serif); font-size: 24px; font-weight: 500; margin: 0 0 4px; }
+/* ----- Multi-item wishlist (saved list + enquiry) + mobile sticky bar ----- */
+.nav-wl { position: relative; display: inline-flex; align-items: center; gap: 5px; }
+.nav-wl .wl-count { min-width: 14px; font-size: 12px; font-weight: 700; color: var(--gold, #c9a961); }
+.nav-wl.has-items svg { fill: var(--gold, #c9a961); stroke: var(--gold, #c9a961); }
+.multi-enquire-hint { margin: 2px auto 18px; font-size: 13.5px; line-height: 1.5; color: var(--ink-soft, #555); background: var(--surface, #faf7f0); border: 1px solid var(--line, #e8e0cf); border-radius: 14px; padding: 10px 18px; text-align: center; max-width: 620px; }
+.multi-enquire-hint .meh-heart { color: var(--gold, #c9a961); font-weight: 700; }
+.modal-card .sub { font-size: 13px; color: var(--ink-soft, #666); margin: 0 0 14px; }
+.wl-body { max-height: 56vh; overflow-y: auto; margin-bottom: 14px; }
+.wl-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line, #e8e0cf); }
+.wl-row:last-child { border-bottom: none; }
+.wl-row img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+.wl-row-body { flex: 1 1 auto; min-width: 0; }
+.wl-row-name { font-weight: 600; font-size: 14px; color: var(--ink, #0d0d0d); }
+.wl-row-meta { font-size: 13px; color: var(--ink-soft, #666); }
+.wl-remove { background: none; border: none; font-size: 22px; color: #b00020; cursor: pointer; line-height: 1; padding: 0 4px; flex-shrink: 0; }
+.wl-footer { display: flex; gap: 10px; align-items: center; }
+.wl-footer .btn-card.primary { flex: 1 1 auto; text-align: center; justify-content: center; }
+.wl-close-btn { background: none; border: 1px solid var(--line, #e8e0cf); border-radius: 10px; padding: 10px 16px; cursor: pointer; font-family: inherit; font-size: 14px; color: var(--ink-soft, #666); flex-shrink: 0; }
+.wl-bar { display: none; }
+@media (max-width: 760px) {
+  .wl-bar {
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 200; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 18px; border: none; border-radius: 14px; cursor: pointer; font-family: inherit;
+    background: var(--gold); color: var(--ink, #0d0d0d); box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    animation: wlBarUp 0.25s ease;
+  }
+  .wl-bar[hidden] { display: none; }
+  .wl-bar-count { font-size: 14px; font-weight: 600; }
+  .wl-bar-cta { font-size: 14px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; }
+  .wl-bar-cta::after { content: "\2192"; }
+}
+@keyframes wlBarUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 /* Mobile: modals become full-screen sheets so tall sale modals fit, and the
    action buttons stay reachable via a sticky footer. Uses dvh/svh (NOT vh) so
    the card never exceeds the visible area when the browser URL bar is showing
