@@ -220,7 +220,16 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   min-height: 460px;
   color: var(--ink);
 }
-.tile:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
+.tile:hover { transform: translateY(-10px); box-shadow: var(--shadow-lg), 0 0 0 1.5px var(--brass); }
+/* The art zooms inside the card (tile has overflow:hidden, so it clips clean) */
+.tile .tile-art { transition: transform 0.65s cubic-bezier(0.22,0.61,0.36,1); }
+.tile:hover .tile-art { transform: scale(1.06); }
+/* The CTA leans into the click */
+.tile:hover .tile-cta { transform: translateX(4px); }
+@media (prefers-reduced-motion: reduce) {
+  .tile, .tile .tile-art, .tile-cta { transition: none; }
+  .tile:hover .tile-art { transform: none; }
+}
 .tile-stretch {
   display: block;
   color: inherit;
@@ -276,7 +285,7 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   color: var(--ink);
   border-bottom: 1.5px solid var(--brass);
   padding: 8px 0 4px;
-  transition: color 0.18s, border-color 0.18s;
+  transition: color 0.18s, border-color 0.18s, transform 0.28s cubic-bezier(0.22,0.61,0.36,1);
 }
 .tile:hover .tile-cta { color: var(--brass-deep); border-color: var(--brass-deep); }
 .tile-cta .ext { font-size: 11px; opacity: 0.6; }
