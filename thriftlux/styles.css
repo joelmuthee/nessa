@@ -4,7 +4,7 @@
   --bg-card: #ffffff;
   --ink: #0d0d0d;
   --ink-soft: #4a4540;
-  --ink-faint: #8a857f;
+  --ink-faint: #6f6a63;
   --gold: #c9a961;
   --gold-deep: #a88847;
   --gold-light: #ead7a8;
@@ -714,7 +714,7 @@ img { max-width: 100%; display: block; }
 .nav-wl .wl-count { min-width: 14px; font-size: 12px; font-weight: 700; color: var(--gold, #c9a961); }
 .nav-wl.has-items svg { fill: var(--gold, #c9a961); stroke: var(--gold, #c9a961); }
 .multi-enquire-hint { margin: 2px auto 18px; font-size: 13.5px; line-height: 1.5; color: var(--ink-soft, #555); background: var(--surface, #faf7f0); border: 1px solid var(--line, #e8e0cf); border-radius: 14px; padding: 10px 18px; text-align: center; max-width: 620px; }
-.multi-enquire-hint .meh-heart { color: var(--gold, #c9a961); font-weight: 700; }
+.multi-enquire-hint .meh-heart { color: #8a6a2f; font-weight: 700; }
 .modal-card .sub { font-size: 13px; color: var(--ink-soft, #666); margin: 0 0 14px; }
 .wl-body { max-height: 56vh; overflow-y: auto; margin-bottom: 14px; }
 .wl-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line, #e8e0cf); }
@@ -1257,6 +1257,7 @@ summary.manual-entry-divider:active .me-pill { transform: translateY(0); }
   margin-bottom: 14px;
 }
 .filters-controls {
+  min-width: 0; /* flex child: without this the row overflows 3px at 320 */
   display: flex;
   gap: 10px;
   align-items: center;
@@ -1280,6 +1281,7 @@ summary.manual-entry-divider:active .me-pill { transform: translateY(0); }
 }
 .search-box input[type="search"] {
   flex: 1;
+  min-width: 0; /* flex input will not shrink below its padding otherwise */
   padding: 11px 40px 11px 44px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1356,7 +1358,7 @@ summary.manual-entry-divider:active .me-pill { transform: translateY(0); }
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 9px 5px 8px;
+  padding: 8px 11px 8px 10px;
   background: rgba(13,13,13,0.55);
   color: #fff;
   border: 0;
@@ -1383,7 +1385,7 @@ summary.manual-entry-divider:active .me-pill { transform: translateY(0); }
   100% { transform: scale(1); }
 }
 @media (max-width: 600px) {
-  .like-pill { top: 10px; right: 10px; padding: 4px 8px 4px 7px; font-size: 11.5px; }
+  .like-pill { top: 10px; right: 10px; padding: 7px 10px 7px 9px; font-size: 12px; }
   .like-pill svg { width: 13px; height: 13px; }
 }
 
@@ -1907,3 +1909,27 @@ summary.manual-entry-divider:active .me-pill { transform: translateY(0); }
 .pos-today-row .ptr-name { flex: 1 1 auto; font-weight: 600; }
 .pos-today-row .ptr-amt { flex: 0 0 auto; font-weight: 700; }
 .pos-today-row .ptr-time { flex: 0 0 auto; color: #999; font-size: 12px; min-width: 42px; text-align: right; }
+
+
+/* ============ POLISH: hover + focus micro-interactions (2026-08) ============ */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--gold, #c9a961); outline-offset: 3px; border-radius: 4px;
+}
+/* Category pills: comfortable height + a small lift on hover */
+.pill { min-height: 38px; transition: border-color 0.2s, color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.15s; }
+.pill:hover { transform: translateY(-1px); box-shadow: 0 3px 9px rgba(13,13,13,0.08); }
+.pill:active { transform: translateY(0); }
+/* Wishlist heart: pops when you hover or tap it */
+.like-pill { transition: background 0.2s, transform 0.16s cubic-bezier(0.34,1.56,0.64,1); }
+.like-pill:hover { transform: scale(1.08); }
+.like-pill:active { transform: scale(0.94); }
+/* Sort dropdown + search: brass ring on focus instead of the browser default */
+.filters-controls select:focus-visible, #searchInput:focus-visible {
+  outline: 2px solid var(--gold, #c9a961); outline-offset: 1px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .like-pill, .pill, .card { transition: none; }
+}

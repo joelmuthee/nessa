@@ -4,7 +4,7 @@
   --bg-card:   #fffdf8;
   --ink:       #1a1714;
   --ink-soft:  #443a30;
-  --ink-faint: #8a7e6f;
+  --ink-faint: #75695a;
   --brass:     #b88845;
   --brass-deep:#8a6230;
   --brass-light:#e7d4ad;
@@ -275,7 +275,7 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   font-size: 13.5px; font-weight: 600;
   color: var(--ink);
   border-bottom: 1.5px solid var(--brass);
-  padding-bottom: 2px;
+  padding: 8px 0 4px;
   transition: color 0.18s, border-color 0.18s;
 }
 .tile:hover .tile-cta { color: var(--brass-deep); border-color: var(--brass-deep); }
@@ -287,15 +287,16 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   gap: 6px;
   padding: 8px 14px;
   border-radius: 999px;
-  background: #25D366;
+  background: #0f7c41;
   color: #fff !important;
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.02em;
   border: 0;
-  transition: background 0.18s, transform 0.18s;
+  transition: background 0.18s, transform 0.18s, box-shadow 0.18s;
 }
-.tile-wa:hover { background: #1eb858; color: #fff !important; transform: translateY(-1px); }
+.tile-wa:hover { background: #128C4B; color: #fff !important; transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15,124,65,0.28); }
+.tile-wa:active { transform: translateY(0); box-shadow: 0 3px 8px rgba(15,124,65,0.22); }
 .tile-wa svg { width: 13px; height: 13px; }
 
 /* ============ ABOUT strip ============ */
@@ -539,7 +540,7 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   font-weight: 600;
   z-index: 2;
 }
-.post-tag.both { background: rgba(184,136,69,0.95); color: #fff; }
+.post-tag.both { background: rgba(143,106,51,0.97); color: #fff; }
 
 /* ============ PAGINATION ============ */
 .pagination {
@@ -548,7 +549,7 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   flex-wrap: wrap;
 }
 .page-btn {
-  min-width: 38px; height: 38px;
+  min-width: 44px; height: 44px;
   border: 1px solid var(--line);
   background: var(--bg-card);
   color: var(--ink-soft);
@@ -689,6 +690,7 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
 .footer-list a {
   color: #d6cbb8;
   font-size: 14.5px;
+  padding: 4px 0;
   transition: color 0.22s, transform 0.22s;
   display: inline-block;
 }
@@ -697,6 +699,7 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
   display: inline-flex !important;
   align-items: center;
   gap: 11px;
+  padding: 4px 0;
 }
 .footer-social .footer-icon {
   color: var(--brass);
@@ -787,3 +790,33 @@ body.nav-open .nav-toggle span { background: var(--brass-light); }
 @keyframes fadeInUp {
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* ============ POLISH: hover + focus micro-interactions (2026-08) ============ */
+/* Desktop nav: animated brass underline that slides in. Scoped above the
+   mobile breakpoint because the drawer menu has its own active style. */
+@media (min-width: 761px) {
+  .nav-links a { position: relative; display: inline-block; padding: 6px 2px; }
+  .nav-links a::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px;
+    background: var(--brass);
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 0.25s cubic-bezier(0.22,0.61,0.36,1);
+  }
+  .nav-links a:hover::after, .nav-links a.active::after { transform: scaleX(1); }
+}
+/* Keyboard users get the same affordance hover users do */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--brass); outline-offset: 3px; border-radius: 4px;
+}
+/* Client cards: gentle brass ring + IG glyph pop on hover */
+.client-card:hover { border-color: var(--brass); }
+/* Pagination: small lift so the buttons feel pressable */
+.page-btn { transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.15s, box-shadow 0.15s; }
+.page-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(26,23,20,0.10); }
+.page-btn:active:not(:disabled) { transform: translateY(0); }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
