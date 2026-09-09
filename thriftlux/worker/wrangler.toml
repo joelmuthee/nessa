@@ -17,7 +17,13 @@ binding = "AI"
 # (Iman holds :00 [disabled], Ryker :10). 6:20 UTC = 9:20 EAT (morning),
 # 10:20 UTC = 13:20 EAT (afternoon), 16:20 UTC = 19:20 EAT (evening).
 [triggers]
-crons = ["20 6 * * *", "20 10 * * *", "20 16 * * *"]
+# NO IG auto-sync crons (Joel, 2026-09-09). Instagram now requires login so
+# every pull goes through Apify, which bills per post FETCHED, not per new post
+# found. Polling 3x a day costs about Ksh 420 a shop a month to re-read posts
+# that have not changed; the owner tapping "Check for new posts" costs about
+# Ksh 18. Sync is manual-button only. The three waves ("20 6", "20 10",
+# "20 16") were removed here. /api/autosync-run still works if hand-called.
+crons = []
 
 # Auth token is set as a secret, not in this file:
 #   wrangler secret put ADMIN_TOKEN

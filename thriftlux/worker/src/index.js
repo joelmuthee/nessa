@@ -408,9 +408,82 @@ Caption: """${trimmed}"""`;
   }
 }
 
+// ---- Instagram access, post-September-2026 ----
+// On 2026-09-01 Instagram switched every logged-out API path to require_login
+// ("igweb_rollout": true). Verified from Cloudflare egress AND from a Kenyan
+// residential IP, so it is mandatory login, not an IP block. Anonymous
+// scraping is dead everywhere; public mirrors are behind challenges or serve
+// no post data. fetchIgFeed therefore tries the direct path first (free, and
+// resumes automatically if Meta reopens it) then falls back to Apify, which
+// runs logged-in scrapers behind residential proxies. Apify engages only when
+// the APIFY_TOKEN secret is set. Mirrors purple-bear/worker/src/index.js.
+const IG_USERNAME = "thriftlux.ke";
+const APIFY_ACTOR = "apify~instagram-post-scraper";
+
+async function fetchIgFeedViaApify(env, { username, count = 24 } = {}) {
+  const user = username || IG_USERNAME;
+  if (!env?.APIFY_TOKEN || !user) return null;
+  let res, data;
+  try {
+    res = await fetch(
+      `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${env.APIFY_TOKEN}&timeout=120`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: [user], resultsLimit: count }),
+      }
+    );
+    data = await res.json();
+  } catch (e) {
+    return { error: `apify: ${String(e).slice(0, 120)}` };
+  }
+  // Apify reports quota/actor problems as an object, success as an array.
+  if (!Array.isArray(data)) {
+    return { error: `apify: ${data?.error?.message || `http ${res.status}`}` };
+  }
+  const items = data.map(post => {
+    const kids = Array.isArray(post.childPosts) ? post.childPosts : [];
+    const imageUrls = (kids.length
+      ? kids.map(c => c.displayUrl || c.imageUrl)
+      : [post.displayUrl || post.imageUrl]).filter(Boolean);
+    const shortcode = post.shortCode || post.shortcode ||
+      (String(post.url || "").match(/\/p\/([^/?]+)/) || [])[1];
+    return {
+      shortcode,
+      imageUrl: imageUrls[0],
+      imageUrls,
+      caption: post.caption || "",
+      isCarousel: imageUrls.length > 1,
+      postUrl: shortcode ? `https://www.instagram.com/p/${shortcode}/` : (post.url || ""),
+      takenAt: post.timestamp || null,
+    };
+  }).filter(it => it.shortcode && it.imageUrl);
+  if (!items.length) return { error: "apify: no posts returned" };
+  return {
+    profile: { id: null, username: user },
+    items,
+    count: items.length,
+    more_available: false,
+    next_max_id: null,
+    via: "apify",
+  };
+}
+
+// Public entry point every caller uses: direct first, Apify as the fallback.
+// Paging (maxId) never falls back — it would restart from the newest post.
+async function fetchIgFeed(opts = {}, env) {
+  const direct = await fetchIgFeedDirect(opts);
+  if (direct && !direct.error && direct.items?.length) return direct;
+  if (opts.maxId) return direct;
+  const viaApify = await fetchIgFeedViaApify(env, { username: opts.username, count: opts.count || 24 });
+  if (viaApify && !viaApify.error && viaApify.items?.length) return viaApify;
+  const first = direct?.error || "no posts";
+  return { ...(direct || {}), error: viaApify?.error ? `${first} | ${viaApify.error}` : first };
+}
+
 // Feed-fetch helper — module-level so /api/ig-feed AND /api/ig-discover share
 // logic. Workers can't fetch() their own URL (error 1042).
-async function fetchIgFeed({ username, userId: directUserId, count = 50, maxId = "" } = {}) {
+async function fetchIgFeedDirect({ username, userId: directUserId, count = 50, maxId = "" } = {}) {
   const headers = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
     "X-IG-App-ID": "936619743392459",
@@ -579,7 +652,7 @@ async function runIgAutoSync(env) {
   const ledgerRaw = await env.BAGS.get("ig_synced_codes");
   const syncedCodes = new Set(ledgerRaw ? JSON.parse(ledgerRaw) : []);
 
-  const feed = await fetchIgFeed({ userId: IG_AUTOSYNC_USER_ID, count: 24 });
+  const feed = await fetchIgFeed({ userId: IG_AUTOSYNC_USER_ID, count: 24 }, env);
   if (!feed.items) return { ok: false, error: feed.error || "feed empty" };
 
   // A few extra candidates beyond the cap so non-bag posts don't eat the run.
@@ -1096,7 +1169,7 @@ export default {
       if (!username && !directUserId) return json({ error: "username or user_id required" }, 400);
 
       try {
-        const result = await fetchIgFeed({ username, userId: directUserId, count, maxId });
+        const result = await fetchIgFeed({ username, userId: directUserId, count, maxId }, env);
         return json(result, result.error ? 502 : 200);
       } catch (err) {
         return json({ error: err.message }, 502);
@@ -1123,7 +1196,7 @@ export default {
       const capOverride = url.searchParams.get("caption");
       if (!sc) return json({ error: "shortcode required" }, 400);
       try {
-        const feed = await fetchIgFeed({ userId: "27867036937", count: 50 });
+        const feed = await fetchIgFeed({ userId: "27867036937", count: 50 }, env);
         const found = (feed.items || []).find(i => i.shortcode === sc);
         const imageUrl = found?.imageUrl || null;
         const caption = capOverride || found?.caption || "";
@@ -1162,7 +1235,7 @@ export default {
         const ledgerRaw = await env.BAGS.get("ig_synced_codes");
         const syncedCodes = new Set(ledgerRaw ? JSON.parse(ledgerRaw) : []);
 
-        const feedData = await fetchIgFeed({ username, userId: directUserId, count: 50 });
+        const feedData = await fetchIgFeed({ username, userId: directUserId, count: 50 }, env);
         if (!feedData.items) return json({ error: feedData.error || "feed empty" }, 502);
 
         const fresh = feedData.items.filter(it => !existingIds.has(`ig_${it.shortcode}`) && !existingIds.has(it.shortcode) && !syncedCodes.has(it.shortcode)).slice(0, limit * 2);
