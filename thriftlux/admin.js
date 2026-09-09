@@ -2936,7 +2936,7 @@ function renderIgSyncList() {
             <select class="ig-sync-cat" data-ig-cat="${i}">${catOpts}</select>
           </div>
           <div class="ig-sync-row-2">
-            <span class="ig-sync-size">${escapeHtml(stockText)}</span>
+            <span class="ig-sync-size">${escapeHtml(stockText)}</span>${it.soldOut ? '<span class="ig-sync-soldout">Will be added as Sold</span>' : ''}
             <input type="number" min="0" class="ig-sync-price" data-ig-price="${i}" value="${s.price > 0 ? s.price : ''}" placeholder="Ksh (blank = on request)" style="width:170px;max-width:48%;padding:4px 8px;border:1px solid var(--border,#ccc);border-radius:6px;font-size:13px;">
             <a href="${escapeHtml(it.postUrl)}" target="_blank" rel="noopener" class="ig-sync-postlink">view on IG ↗</a>
           </div>
@@ -2972,6 +2972,9 @@ async function commitIgSync() {
       description: it.suggested?.description || '',
       imageUrls: it.imageUrls || [it.imageUrl],
       takenAt: it.takenAt,
+      // Caption said SOLD OUT: import it, but land it as sold rather than
+      // offering a bag that is already gone.
+      soldOut: !!it.soldOut,
     });
   });
   if (!picks.length) { showToast('Tick at least one bag to add.'); return; }

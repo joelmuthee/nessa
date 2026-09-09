@@ -408,6 +408,37 @@ Caption: """${trimmed}"""`;
   }
 }
 
+// A caption that says SOLD OUT means the bag went on Instagram before we saw
+// it. It still belongs in the catalog: ThriftLux shows sold bags greyed with a
+// Sold badge, and 210 of 229 bags are sold, so they are the shop's back
+// catalogue, not clutter. Import it and mark it sold. Never invent a soldTo /
+// soldAt for one: there is no real sale date or amount, and a fake one would
+// show up as revenue in her reports.
+const IG_SOLD_OUT_RE = /sold\s*out/i;
+// The cross emoji (with or without its variation selector) and any leftover
+// "SOLD OUT" text belong to the status, never to the product name.
+const IG_NAME_STATUS_RE = /(?:\u274c\ufe0f?)+|sold\s*out\s*[:\-]?/gi;
+function cleanIgName(n) {
+  return String(n || "").replace(IG_NAME_STATUS_RE, "").replace(/\s{2,}/g, " ").trim().replace(/^[\-\u00b7,\s]+/, "");
+}
+
+// Run an async mapper over items at limited concurrency. The classifier fires
+// two model calls per post, each vision call downloading the photo first, so a
+// Promise.all over 40 posts swamped Workers AI and most posts fell back to the
+// generic "Pre-loved Bag" name (14 of 20 on 2026-09-09). Small batches keep
+// every post named properly.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      out[idx] = await fn(items[idx], idx);
+    }
+  }));
+  return out;
+}
+
 // ---- Instagram access, post-September-2026 ----
 // On 2026-09-01 Instagram switched every logged-out API path to require_login
 // ("igweb_rollout": true). Verified from Cloudflare egress AND from a Kenyan
@@ -1235,14 +1266,14 @@ export default {
         const ledgerRaw = await env.BAGS.get("ig_synced_codes");
         const syncedCodes = new Set(ledgerRaw ? JSON.parse(ledgerRaw) : []);
 
-        const feedData = await fetchIgFeed({ username, userId: directUserId, count: 50 }, env);
+        const feedData = await fetchIgFeed({ username, userId: directUserId, count: 24 }, env);
         if (!feedData.items) return json({ error: feedData.error || "feed empty" }, 502);
 
-        const fresh = feedData.items.filter(it => !existingIds.has(`ig_${it.shortcode}`) && !existingIds.has(it.shortcode) && !syncedCodes.has(it.shortcode)).slice(0, limit * 2);
+        const fresh = feedData.items.filter(it => !existingIds.has(`ig_${it.shortcode}`) && !existingIds.has(it.shortcode) && !syncedCodes.has(it.shortcode)).slice(0, limit);
 
         // Category coerce/ALLOWED are module-level (shared with runIgAutoSync).
 
-        const classified = await Promise.all(fresh.map(async (it) => {
+        const classified = await mapLimit(fresh, 5, async (it) => {
           const heuristic = looksLikeProduct(it.caption);
           const [vision, text] = await Promise.all([
             classifyPostWithVision(env, it.caption, it.imageUrl),
@@ -1258,11 +1289,11 @@ export default {
           if (!isProduct) return null;
           const heuristicSuggestion = parseCaptionForBag(it.caption);
           const looksLikeFragment = (n) => !n || /^(bag|size|tn|hh|js\d+|nb)$/i.test(n.trim());
-          let name = heuristicSuggestion.name;
+          let name = cleanIgName(heuristicSuggestion.name);
           if (text?.is_product && !looksLikeFragment(text.name) && text.name !== "Pre-loved Bag") {
-            name = text.name.trim();
+            name = cleanIgName(text.name);
           } else if (visionOk && vision.is_product && !looksLikeFragment(vision.name) && vision.name !== "Pre-loved Bag") {
-            name = vision.name.trim();
+            name = cleanIgName(vision.name);
           } else if (visionOk && vision.is_product && vision.name === "Pre-loved Bag") {
             name = "Pre-loved Bag";
           }
@@ -1298,8 +1329,9 @@ export default {
             },
             ai_reason: reason,
             classifier,
+            soldOut: IG_SOLD_OUT_RE.test(it.caption || ""),
           };
-        }));
+        });
         const candidates = classified.filter(Boolean).slice(0, limit);
 
         return json({
@@ -1382,11 +1414,13 @@ export default {
         const postUrl = `https://www.instagram.com/p/${it.shortcode}/`;
         const bag = {
           id,
-          name: (it.name || "Pre-loved Bag").slice(0, 80),
+          name: (cleanIgName(it.name) || "Pre-loved Bag").slice(0, 80),
           category: it.category || "Shoulder",
           description: it.description || "Pre-loved with care. Photographed exactly as it is. Worldwide delivery.",
           price: Number(it.price) > 0 ? Number(it.price) : 0, // owner-confirmed or caption-parsed
-          sold: false,
+          // Sold on Instagram before we imported it. No soldTo/soldAt: there is no
+          // real sale date or amount, and inventing one would fabricate revenue.
+          sold: !!it.soldOut,
           image: uploaded[0],
           createdAt: it.takenAt || new Date().toISOString(),
           reel: postUrl,

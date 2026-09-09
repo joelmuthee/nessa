@@ -1933,3 +1933,11 @@ a:focus-visible, button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .like-pill, .pill, .card { transition: none; }
 }
+
+/* IG sync review: flags a candidate whose caption said SOLD OUT, so the owner
+   can see before ticking that it will land as Sold rather than available. */
+.ig-sync-soldout {
+  display: inline-block; margin-left: 8px; padding: 2px 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  color: #7a1f1f; background: #fbe4e4; border: 1px solid #f0c2c2; border-radius: 999px;
+}
