@@ -2180,6 +2180,17 @@ document.getElementById('bulkSaleSaveBtn').addEventListener('click', async () =>
 });
 
 // ---- Boost to top ----
+// A boost lasts 7 days on the public site, so the admin has to say so too:
+// an owner looking at a permanent "BOOSTED" tag on a six-week-old promo has no
+// way to know it stopped doing anything.
+const BOOST_DAYS = 7;
+function boostDaysLeft(b) {
+  if (!b || b.sold || !b.boostedAt) return 0;
+  const t = new Date(b.boostedAt).getTime();
+  if (!t) return 0;
+  return Math.ceil((BOOST_DAYS * 86400000 - (Date.now() - t)) / 86400000);
+}
+
 // Sets boostedAt on the selected bags; the public site floats boosted (unsold)
 // bags to the top of the default Featured order. Most recently boosted first.
 window.bulkBoost = async () => {
@@ -2265,7 +2276,9 @@ function renderList() {
           (!b.sold && b.salePrice > 0 && b.salePrice < b.price)
             ? `<s style="color:#999;font-weight:400;">${fmtKsh(b.price)}</s> <span style="color:#c0392b;font-weight:700;">${fmtKsh(b.salePrice)}</span> <span style="color:#c0392b;font-weight:700;">· SALE</span>`
             : fmtKsh(b.price)
-        } ${b.sold ? '· <span style="color:#b00020">SOLD</span>' : ''}${(!b.sold && b.boostedAt) ? ' · <span style="color:#8a6d3b;font-weight:700;">⬆ BOOSTED</span>' : ''}</div>
+        } ${b.sold ? '· <span style="color:#b00020">SOLD</span>' : ''}${(!b.sold && b.boostedAt) ? (boostDaysLeft(b) > 0
+          ? ` · <span style="color:#8a6d3b;font-weight:700;">⬆ BOOSTED · ${boostDaysLeft(b)} day${boostDaysLeft(b) === 1 ? '' : 's'} left</span>`
+          : ' · <span style="color:#999;font-weight:700;">⬆ boost expired</span>') : ''}</div>
         <div class="admin-card-stock">${escapeHtml(b.category || 'Uncategorised')}</div>
         ${addedIso ? `<div class="admin-card-added" title="Added ${new Date(addedIso).toLocaleString('en-KE')}">Added ${relTime(addedIso)}</div>` : ''}
         ${buyer}

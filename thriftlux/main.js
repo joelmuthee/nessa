@@ -155,7 +155,17 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
       // 'featured' = original order, except boosted bags float to the top
       // (admin "Boost to top" sets boostedAt; sold bags never float).
       default: {
-        const boostRank = b => (!b.sold && b.boostedAt) ? new Date(b.boostedAt).getTime() : 0;
+        // A boost lasts 7 days. Without an expiry a promo set once keeps
+        // outranking new stock forever: five bags boosted on 2026-07-30 were
+        // still pinned above the September drop six weeks later, so the shop
+        // opened on a May bag and looked nothing like her Instagram.
+        const BOOST_DAYS = 7;
+        const boostRank = (b) => {
+          if (b.sold || !b.boostedAt) return 0;
+          const t = new Date(b.boostedAt).getTime();
+          if (!t) return 0;
+          return (Date.now() - t) > BOOST_DAYS * 86400000 ? 0 : t;
+        };
         out.sort((a, b) => boostRank(b) - boostRank(a)); // stable: unboosted keep original order
       }
     }
