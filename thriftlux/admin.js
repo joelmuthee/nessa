@@ -9,6 +9,7 @@ const SHOP_URL = 'https://nessa.co.ke/thriftlux'; // public storefront — used 
 let bags = [];
 let settings = {};
 let clients = []; // manually-added clients (server-synced); sale buyers derived from soldTo
+let demand = []; // "asked for" log, admin-only, server-synced (shop-extras.js)
 let expenses = []; // operating expenses (ad spend, packaging, etc.) — admin-only, server-synced
 let accountSuspended = false;
 let loyaltyUnlocked = false;
@@ -132,7 +133,7 @@ async function publishBags() {
   const res = await fetch(`${API_BASE}/api/bulk`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify({ bags, settings, clients, expenses, baseRev: dataRev }),
+    body: JSON.stringify({ bags, settings, clients, expenses, demand, baseRev: dataRev }),
   });
   if (res.status === 409) {
     const e = new Error('version conflict'); e.conflict = true; throw e;
@@ -168,6 +169,7 @@ async function apiMutateAndPublish(mutate) {
     settings = json.settings || {};
     clients = Array.isArray(json.clients) ? json.clients : [];
     expenses = Array.isArray(json.expenses) ? json.expenses : [];
+  demand = Array.isArray(json.demand) ? json.demand : [];
     loyaltyUnlocked = !!json.loyaltyUnlocked;
     dataRev = typeof json.rev === 'number' ? json.rev : 0;
     backfill();
@@ -190,6 +192,7 @@ async function loadData() {
   settings = json.settings || {};
   clients = Array.isArray(json.clients) ? json.clients : [];
   expenses = Array.isArray(json.expenses) ? json.expenses : [];
+  demand = Array.isArray(json.demand) ? json.demand : [];
   accountSuspended = !!json.suspended;
   loyaltyUnlocked = !!json.loyaltyUnlocked;
   dataRev = typeof json.rev === 'number' ? json.rev : 0;
@@ -1096,6 +1099,7 @@ let invShowAll = false;
 const INV_PAGE_SIZE = 15;
 
 function renderInventory() {
+  if (window.renderExtras) window.renderExtras();
   const total = bags.length;
   const sold = bags.filter(isSold).length;
   const available = total - sold;
@@ -2284,6 +2288,7 @@ function renderList() {
         ${buyer}
         <div class="admin-card-actions">
           <button onclick="editBag('${b.id}')">Edit</button>
+          ${b.sold ? '' : `<button class="sx-send" onclick="sendToCustomer('${b.id}')">Send to customer</button>`}
           <button class="sold-toggle ${b.sold ? 'on' : ''}" onclick="toggleSold('${b.id}')">${b.sold ? 'Unsell' : 'Sell'}</button>
           <button class="danger" onclick="deleteBag('${b.id}')">Delete</button>
         </div>
