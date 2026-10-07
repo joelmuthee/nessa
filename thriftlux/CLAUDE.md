@@ -20,3 +20,9 @@ Bulk-bar action `⬆ Boost to top` stamps `boostedAt: ISO` on selected bags; on 
 - No public ribbon — position IS the signal. Admin list shows a gold `⬆ BOOSTED` tag next to the price line.
 - Composes with Sale: a bag can be both boosted AND on sale (pinned + red SALE ribbon). Don't make them exclusive.
 - Built for Venessa's "no idea what to do with old bags still in stock" — sibling of Sale; full spec in `Website Designs/CATALOG-STANDARDS.md` → "Boost to top". 3k Shop Records tier feature.
+
+## Instagram checks (2026-10-07)
+
+"Check for new posts" fetches only posts newer than the shop has seen (`onlyPostsNewerThan`, KV
+`ig_newest_seen`), is capped at 2 a day (KV `apify_calls:<date>`), and tells the owner how many
+checks are left. Full rule: `CATALOG-STANDARDS.md` → Instagram bulk sync.
