@@ -2911,7 +2911,20 @@ igSyncCommitBtn?.addEventListener('click', commitIgSync);
 async function checkForNewIgPosts() {
   if (accountSuspended) { igSyncStatus.textContent = SUSPENDED_MSG; return; }
   igSyncCheckBtn.disabled = true;
-  igSyncStatus.textContent = 'Checking Instagram…';
+  // Owner notice: each check counts against a daily allowance (2 a day).
+  let igQuota = null;
+  try {
+    const qr = await fetch(`${API_BASE}/api/ig-checks`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } });
+    if (qr.ok) igQuota = await qr.json();
+  } catch (_) {}
+  if (igQuota && igQuota.left <= 0) {
+    igSyncStatus.textContent = `You have used today's ${igQuota.limit} Instagram checks. Try again tomorrow.`;
+    igSyncCheckBtn.disabled = false;
+    return;
+  }
+  igSyncStatus.textContent = igQuota
+    ? `Checking Instagram… This uses 1 of your ${igQuota.limit} checks for today.`
+    : 'Checking Instagram…';
   igSyncListEl.innerHTML = '';
   igSyncCommitRow.style.display = 'none';
   try {
@@ -2921,12 +2934,17 @@ async function checkForNewIgPosts() {
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
     igSyncCandidates = data.items || [];
+    let igLeftNote = '';
+    try {
+      const q2 = await (await fetch(`${API_BASE}/api/ig-checks`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })).json();
+      igLeftNote = ` ${q2.left === 0 ? 'No Instagram checks left today.' : q2.left + ' Instagram check' + (q2.left === 1 ? '' : 's') + ' left today.'}`;
+    } catch (_) {}
     if (!igSyncCandidates.length) {
-      igSyncStatus.textContent = '✓ Catalog is up to date. No new posts on Instagram.';
+      igSyncStatus.textContent = '✓ Catalog is up to date. No new posts on Instagram.' + igLeftNote;
       igSyncCheckBtn.disabled = false;
       return;
     }
-    igSyncStatus.textContent = `Found ${igSyncCandidates.length} new post${igSyncCandidates.length === 1 ? '' : 's'}. Review below, then add.`;
+    igSyncStatus.textContent = `Found ${igSyncCandidates.length} new post${igSyncCandidates.length === 1 ? '' : 's'}. Review below, then add.` + igLeftNote;
     renderIgSyncList();
     igSyncCommitRow.style.display = 'flex';
   } catch (err) {

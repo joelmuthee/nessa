@@ -451,17 +451,43 @@ async function mapLimit(items, limit, fn) {
 const IG_USERNAME = "thriftlux.ke";
 const APIFY_ACTOR = "apify~instagram-post-scraper";
 
-async function fetchIgFeedViaApify(env, { username, count = 24 } = {}) {
+// COST: Apify bills per post returned (~$0.0023 each). Without newerThan, every
+// tap re-bought the same 50 posts (~Ksh 15). With it, a tap that finds nothing
+// new returns nothing and costs nothing; new posts cost about Ksh 0.30 each.
+const APIFY_MAX_USD_PER_CALL = 0.10;
+// Instagram checks are capped at IG_CHECKS_PER_DAY per shop per Nairobi day
+// (Joel, 2026-10-07: "maximum 2"). Every Apify pull counts as one check, each is
+// also capped at APIFY_MAX_USD_PER_CALL, so the worst case is $0.20 a shop a day.
+// The admin reads /api/ig-checks to tell the owner how many she has left.
+const IG_CHECKS_PER_DAY = 2;
+async function igChecksUsed(env) {
+  const day = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const key = `apify_calls:${day}`;
+  const used = env?.BAGS ? parseInt((await env.BAGS.get(key)) || "0", 10) : 0;
+  return { key, used };
+}
+async function apifyCallAllowed(env) {
+  if (!env?.BAGS) return true;
+  const { key, used } = await igChecksUsed(env);
+  if (used >= IG_CHECKS_PER_DAY) return false;
+  await env.BAGS.put(key, String(used + 1), { expirationTtl: 2 * 86400 });
+  return true;
+}
+async function fetchIgFeedViaApify(env, { username, count = 24, newerThan = "" } = {}) {
   const user = username || IG_USERNAME;
   if (!env?.APIFY_TOKEN || !user) return null;
+  if (!(await apifyCallAllowed(env))) return { error: `You have used today's ${IG_CHECKS_PER_DAY} Instagram checks. Try again tomorrow.` };
   let res, data;
   try {
     res = await fetch(
-      `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${env.APIFY_TOKEN}&timeout=120`,
+      `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${env.APIFY_TOKEN}&timeout=120&maxTotalChargeUsd=${APIFY_MAX_USD_PER_CALL}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username: [user], resultsLimit: count }),
+        body: JSON.stringify(Object.assign(
+          { username: [user], resultsLimit: count, skipPinnedPosts: true },
+          newerThan ? { onlyPostsNewerThan: newerThan } : {}
+        )),
       }
     );
     data = await res.json();
@@ -494,7 +520,10 @@ async function fetchIgFeedViaApify(env, { username, count = 24 } = {}) {
     // list, and catalog order, which IS the shop's "Featured" order) assumes
     // Instagram order, so sort it here once rather than at every caller.
     .sort((a, b) => String(b.takenAt || "").localeCompare(String(a.takenAt || "")));
-  if (!items.length) return { error: "apify: no posts returned" };
+  // "Nothing newer than your last post" is a normal answer, not a failure.
+  if (!items.length) return newerThan
+    ? { profile: { id: null, username: user }, items: [], count: 0, more_available: false, next_max_id: null, via: "apify" }
+    : { error: "apify: no posts returned" };
   return {
     profile: { id: null, username: user },
     items,
@@ -511,8 +540,8 @@ async function fetchIgFeed(opts = {}, env) {
   const direct = await fetchIgFeedDirect(opts);
   if (direct && !direct.error && direct.items?.length) return direct;
   if (opts.maxId) return direct;
-  const viaApify = await fetchIgFeedViaApify(env, { username: opts.username, count: opts.count || 24 });
-  if (viaApify && !viaApify.error && viaApify.items?.length) return viaApify;
+  const viaApify = await fetchIgFeedViaApify(env, { username: opts.username, count: opts.count || 24, newerThan: opts.newerThan || "" });
+  if (viaApify && !viaApify.error && (viaApify.items?.length || opts.newerThan)) return viaApify;
   const first = direct?.error || "no posts";
   return { ...(direct || {}), error: viaApify?.error ? `${first} | ${viaApify.error}` : first };
 }
@@ -1257,8 +1286,18 @@ export default {
     }
 
     // ---- IG sync: discover new posts (admin-only preview) ----
+    // How many Instagram checks the owner has left today (admin notice).
+    if (request.method === "GET" && path === "/api/ig-checks") {
+      if (!isAuthed(request, env)) return json({ error: "unauthorized" }, 401);
+      const { used } = await igChecksUsed(env);
+      return json({ limit: IG_CHECKS_PER_DAY, used, left: Math.max(0, IG_CHECKS_PER_DAY - used) });
+    }
+
     if (request.method === "GET" && path === "/api/ig-discover") {
       if (!isAuthed(request, env)) return json({ error: "unauthorized" }, 401);
+      if (env.APIFY_TOKEN && (await igChecksUsed(env)).used >= IG_CHECKS_PER_DAY) {
+        return json({ error: `You have used today's ${IG_CHECKS_PER_DAY} Instagram checks. Try again tomorrow.`, checksLeft: 0, checksPerDay: IG_CHECKS_PER_DAY }, 429);
+      }
       const username = url.searchParams.get("username");
       const directUserId = url.searchParams.get("user_id");
       const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 50);
@@ -1283,8 +1322,19 @@ export default {
         const ledgerRaw = await env.BAGS.get("ig_synced_codes");
         const syncedCodes = new Set(ledgerRaw ? JSON.parse(ledgerRaw) : []);
 
-        const feedData = await fetchIgFeed({ username, userId: directUserId, count: 24 }, env);
+        // Newest Instagram post this shop has already seen: the later of the newest
+        // IG item in the catalog and the newest post the last check returned (KV
+        // ig_newest_seen). Only posts after it are fetched, so the owner never pays
+        // Apify twice for the same post, including ones she chose not to add.
+        const newestIg = [
+          ...(existing.bags || []).filter(b => b.instagramUrl || String(b.id || "").startsWith("ig_")).map(b => b.createdAt || ""),
+          (await env.BAGS.get("ig_newest_seen")) || "",
+        ].sort().pop() || "";
+        const newerThan = newestIg ? new Date(new Date(newestIg).getTime() + 1000).toISOString() : "";
+        const feedData = await fetchIgFeed({ username, userId: directUserId, count: 24, newerThan }, env);
         if (!feedData.items) return json({ error: feedData.error || "feed empty" }, 502);
+        const newestSeen = feedData.items.map(it => it.takenAt || "").sort().pop();
+        if (newestSeen && newestSeen > newestIg) await env.BAGS.put("ig_newest_seen", newestSeen);
 
         const fresh = feedData.items.filter(it => !existingIds.has(`ig_${it.shortcode}`) && !existingIds.has(it.shortcode) && !syncedCodes.has(it.shortcode)).slice(0, limit);
 
