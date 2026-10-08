@@ -1,0 +1,15 @@
+# Private files must never be served (2026-10-08). Pages publishes the whole folder, so
+# notes and the worker source (which holds the fallback owner password) went public.
+# Redirect rules run before static assets on Pages.
+/NESSA-PLAN.md / 301
+/README.md / 301
+/build_data.py / 301
+/classify.py / 301
+/deploy.sh / 301
+/deploy.ps1 / 301
+/workflows/* / 301
+/thriftlux/AUDIT.md / 301
+/thriftlux/CLAUDE.md / 301
+/thriftlux/worker/* / 301
+/thriftlux/tools/* / 301
+/thriftlux/workflows/* / 301
