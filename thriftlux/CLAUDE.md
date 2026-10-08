@@ -42,4 +42,4 @@ the number on the tile is what the buyer sees. Uncategorised bags are left out o
   Delivery anywhere in Kenya · One of each, once it's gone it's gone. Delivery is at the
   buyer's cost (settings `location`), so never write "free delivery".
 - Tile entrance moves position only, never opacity, so a stalled animation still shows them.
-- Not in a phone? The four photos sit in one row above the headline (Jirani rule).
+- On a phone the four photos sit in one row above the headline (Jirani rule).
