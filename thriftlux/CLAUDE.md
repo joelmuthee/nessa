@@ -43,3 +43,27 @@ the number on the tile is what the buyer sees. Uncategorised bags are left out o
   buyer's cost (settings `location`), so never write "free delivery".
 - Tile entrance moves position only, never opacity, so a stalled animation still shows them.
 - On a phone the four photos sit in one row above the headline (Jirani rule).
+
+## Deploy from the REPO ROOT, never from `thriftlux/` (LOCKED 2026-10-08)
+
+ThriftLux is a subfolder of the `nessa` Pages project, which serves the whole of nessa.co.ke.
+Deploy from `nessa-essenceautomations/`:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=58685495706b973821d77208248c66fc npx --yes wrangler@4.42.0 pages deploy . --project-name=nessa --branch=main
+```
+
+Deploying from inside `thriftlux/` publishes ThriftLux as the WHOLE site: nessa.co.ke's home
+page became ThriftLux and every `/thriftlux/images/...` path fell through to HTML (about 5
+minutes on 2026-10-08, fixed by redeploying from the root). The account id is needed because
+wrangler now sees two accounts and refuses to pick one non-interactively.
+After any deploy check both titles: `/` must be "Nessa - Makeup, Styling, ThriftLux Bags",
+`/thriftlux/` must be "ThriftLux · ...".
+
+## WhatsApp share card (2026-10-08)
+
+`images/og-image.jpg`, 1200x630, about 85KB: logo left, three real in-stock bags right
+(cropped only, never retouched). Dark like the hero, because the logo is gold on black.
+Regenerate with `tools/make_og.py` (usage in its header) when the pictured bags have long
+sold. All four image refs in `index.html` point at it (og, secure_url, twitter, JSON-LD).
+Per-bag previews are separate: the wa.me message links the worker `/share/<id>` page.
