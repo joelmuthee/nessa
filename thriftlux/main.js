@@ -190,6 +190,74 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
     });
   }
 
+  // ----- Hero collage + Shop by bag type (Jirani pattern, 2026-10-08) -----
+  // Thrift: one of each, so ONLY available bags (never sold) with a real price
+  // and photo. Newest first, one per bag type in turn so the four mix her main
+  // types. Fewer qualifying bags means fewer tiles; none hides the collage.
+  const heroOk = b => !b.sold && b.image && effectivePrice(b) > 0;
+  const byNewest = (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  let heroIds = new Set();
+
+  function buildHeroCollage() {
+    const box = document.getElementById('heroCollage');
+    if (!box) return;
+    const avail = bags.filter(heroOk).sort(byNewest);
+    const groups = {};
+    avail.forEach(b => { if (b.category) (groups[b.category] = groups[b.category] || []).push(b); });
+    const types = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+    const pick = [];
+    for (let round = 0; pick.length < 4 && round < 4; round++) {
+      for (const t of types) { if (pick.length < 4 && groups[t][round]) pick.push(groups[t][round]); }
+    }
+    for (const b of avail) { if (pick.length >= 4) break; if (!pick.includes(b)) pick.push(b); }
+    heroIds = new Set(pick.map(b => b.id));
+    box.innerHTML = pick.map(b => `<a class="hc-tile" href="#shop" data-hero-cat="${escapeHtml(b.category || '')}" aria-label="${escapeHtml(b.name)}, ${fmtPrice(effectivePrice(b))}">
+        <img class="hc-img" src="${escapeHtml(b.image)}?${IMG_VERSION}" alt="${escapeHtml(b.name)}" loading="eager">
+        <span class="hc-price">${fmtPrice(effectivePrice(b))}</span>
+      </a>`).join('');
+  }
+
+  // One real photo (a bag not already in the hero where possible) and the live
+  // count of AVAILABLE bags per type, biggest first. Hidden under 2 types.
+  function buildCatRow() {
+    const row = document.getElementById('catRow'), grid = document.getElementById('catRowGrid');
+    if (!row || !grid) return;
+    const live = bags.filter(b => !b.sold && b.category).sort(byNewest);
+    const types = [...new Set(live.map(b => b.category))]
+      .map(c => ({ c, list: live.filter(b => b.category === c) }))
+      .sort((a, b) => b.list.length - a.list.length);
+    if (types.length < 2) { row.hidden = true; return; }
+    grid.innerHTML = types.map(({ c, list }) => {
+      const withImg = list.filter(b => b.image);
+      const img = ((withImg.find(b => !heroIds.has(b.id)) || withImg[0]) || {}).image || '';
+      return `<button type="button" class="cat-tile" data-hero-cat="${escapeHtml(c)}">
+        ${img ? `<img src="${escapeHtml(img)}?${IMG_VERSION}" alt="" loading="lazy">` : ''}
+        <span class="cat-tile-name">${escapeHtml(c)}</span>
+        <span class="cat-tile-count">${list.length} available</span>
+      </button>`;
+    }).join('');
+    row.hidden = false;
+  }
+
+  // A hero tile or bag-type tile shows the AVAILABLE bags of that type and
+  // scrolls to the shop, so the count on the tile matches what the buyer sees.
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-hero-cat]');
+    if (!t) return;
+    e.preventDefault();
+    currentFilter = 'available';
+    if (t.dataset.heroCat) currentCategory = t.dataset.heroCat;
+    currentPage = 1;
+    render();
+    const shop = document.getElementById('shop');
+    if (!shop) return;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    shop.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    // Smooth scroll runs on animation frames, which can stall (background tab,
+    // some in-app webviews). If it has not landed, jump there.
+    setTimeout(() => { if (Math.abs(shop.getBoundingClientRect().top) > 150) shop.scrollIntoView({ block: 'start' }); }, 1200);
+  });
+
   function render() {
     const filtered = visibleBags();
 
@@ -546,6 +614,8 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   if (suspended) { showSuspended(); return; }
   renderCategoryPills();
   render();
+  buildHeroCollage();
+  buildCatRow();
   updateWlCount();
 })();
 

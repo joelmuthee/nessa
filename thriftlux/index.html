@@ -31,7 +31,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260823polish2">
+<link rel="stylesheet" href="styles.css?v=20261008hero">
 <!-- GHL external tracking — captures shoppers who visit this site -->
 <script src="https://link.essenceautomations.com/js/external-tracking.js" data-tracking-id="tk_d5a5c7952dc94771ba91855a4bfe3aea"></script>
 
@@ -87,16 +87,33 @@
 </nav>
 
 <header class="hero">
+  <span class="hero-blob hero-blob--a" aria-hidden="true"></span>
+  <span class="hero-blob hero-blob--b" aria-hidden="true"></span>
   <div class="hero-inner">
-    <p class="hero-eyebrow">Hand-picked thrift bags · Nairobi</p>
-    <h1 class="hero-title">Affordable luxury,<br><em>always.</em></h1>
-    <p class="hero-sub">Designer-style and one-of-a-kind handbags, hand-picked. Shop the latest drops below.</p>
-    <div class="hero-cta">
-      <a href="#shop" class="btn btn-primary">Browse the collection</a>
-      <a href="https://wa.me/254705044940" class="btn btn-ghost" target="_blank" rel="noopener">Chat on WhatsApp</a>
+    <div class="hero-copy">
+      <p class="hero-eyebrow">Hand-picked thrift bags · Nairobi</p>
+      <h1 class="hero-title">Affordable luxury,<br><em>always.</em></h1>
+      <p class="hero-sub">Designer-style and one-of-a-kind handbags, hand-picked. Order on WhatsApp.</p>
+      <div class="hero-cta">
+        <a href="#shop" class="btn btn-primary">Browse the collection</a>
+        <a href="https://wa.me/254705044940" class="btn btn-ghost" target="_blank" rel="noopener">Chat on WhatsApp</a>
+      </div>
+      <!-- Perks: only what ThriftLux's own copy already says (How to buy + footer). Never invent terms. -->
+      <ul class="hero-perks">
+        <li><span class="perk-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span>Pick up in Nairobi CBD</li>
+        <li><span class="perk-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/></svg></span>Delivery anywhere in Kenya</li>
+        <li><span class="perk-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.2 5.6L20 9.3l-4.4 3.9 1.3 5.8L12 16l-4.9 3 1.3-5.8L4 9.3l5.8-.7z"/></svg></span>One of each. Once it's gone, it's gone</li>
+      </ul>
     </div>
+    <!-- Filled from the live catalog by main.js (buildHeroCollage): four AVAILABLE bags, real prices. Sold bags never appear. -->
+    <div class="hero-collage" id="heroCollage" aria-label="Latest bags in the shop"></div>
   </div>
 </header>
+
+<section class="cat-row container" id="catRow" hidden aria-label="Shop by bag type">
+  <h2 class="cat-row-title">Shop by bag type</h2>
+  <div class="cat-row-grid" id="catRowGrid"></div>
+</section>
 
 <section class="filters" id="shop">
   <div class="container">
@@ -253,6 +270,6 @@
   </svg>
 </button>
 
-<script src="main.js?v=20260909boost7"></script>
+<script src="main.js?v=20261008hero"></script>
 </body>
 </html>

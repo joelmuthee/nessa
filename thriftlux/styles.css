@@ -132,8 +132,8 @@ img { max-width: 100%; display: block; }
 .hero {
   background: linear-gradient(135deg, #0d0d0d 0%, #1a1410 50%, #0d0d0d 100%);
   color: #fff;
-  text-align: center;
-  padding: 100px 20px 110px;
+  text-align: left;
+  padding: 72px 20px 84px;
   position: relative;
   overflow: hidden;
 }
@@ -146,7 +146,7 @@ img { max-width: 100%; display: block; }
     radial-gradient(circle at 80% 70%, rgba(201,169,97,0.10), transparent 50%);
   pointer-events: none;
 }
-.hero-inner { position: relative; max-width: 800px; margin: 0 auto; }
+.hero-inner { position: relative; max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 48px; align-items: center; }
 .hero-eyebrow {
   font-size: 12px;
   letter-spacing: 0.3em;
@@ -156,7 +156,7 @@ img { max-width: 100%; display: block; }
 }
 .hero-title {
   font-family: var(--serif);
-  font-size: clamp(48px, 8vw, 88px);
+  font-size: clamp(46px, 5.2vw, 76px);
   font-weight: 500;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -171,9 +171,47 @@ img { max-width: 100%; display: block; }
   font-size: 18px;
   color: #d8d2c4;
   max-width: 560px;
-  margin: 0 auto 36px;
+  margin: 0 0 32px;
 }
-.hero-cta { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.hero-cta { display: flex; justify-content: flex-start; gap: 14px; flex-wrap: wrap; }
+
+/* Split hero (2026-10-08, Jirani pattern): copy left, four of her real AVAILABLE bags right,
+   on gold glows taken from the logo. Kept dark on purpose: the logo is gold art on black. */
+.hero-copy { min-width: 0; position: relative; }
+.hero-blob { position: absolute; border-radius: 50%; pointer-events: none; }
+.hero-blob--a { width: 560px; height: 560px; right: -90px; top: -90px; background: radial-gradient(circle closest-side, rgba(201,169,97,0.24) 0%, rgba(201,169,97,0.09) 50%, transparent 100%); }
+.hero-blob--b { width: 320px; height: 320px; right: 34%; bottom: -150px; background: radial-gradient(circle closest-side, rgba(234,215,168,0.12) 0%, transparent 100%); }
+.hero-perks { list-style: none; display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 30px; padding: 0; }
+.hero-perks li { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: #f0e9d8; }
+.perk-ic { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(201,169,97,0.10); border: 1px solid rgba(201,169,97,0.45); color: var(--gold); font-size: 15px; }
+.perk-ic svg { width: 1em; height: 1em; }
+.hero-collage { position: relative; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 470px; justify-self: center; width: 100%; }
+.hero-collage:empty { display: none; }
+.hc-tile { position: relative; display: block; min-width: 0; background: #ffffff; border-radius: 18px; padding: 7px; box-shadow: 0 0 0 1px rgba(201,169,97,0.35), 0 18px 40px rgba(0,0,0,0.45); color: var(--ink); transition: transform .3s; }
+.hc-tile:nth-child(1) { transform: rotate(-2.5deg); }
+.hc-tile:nth-child(2) { transform: rotate(2deg) translateY(28px); }
+.hc-tile:nth-child(3) { transform: rotate(1.5deg) translateY(-6px); }
+.hc-tile:nth-child(4) { transform: rotate(-1.5deg) translateY(22px); }
+.hc-tile:hover { transform: rotate(0) translateY(-4px) scale(1.02); z-index: 2; }
+.hc-img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; background: #f4f1ec; border-radius: 12px; }
+.hc-price { position: absolute; left: 14px; bottom: 14px; background: #0d0d0d; color: var(--gold-light); border: 1px solid rgba(201,169,97,0.55); font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; box-shadow: 0 4px 10px rgba(0,0,0,0.25); white-space: nowrap; }
+/* Entrance moves position only, never opacity: if it never runs, the tiles are simply there. */
+@media (prefers-reduced-motion: no-preference) {
+  .hc-tile { animation: hcIn .7s cubic-bezier(0.22,0.61,0.36,1) both; }
+  .hc-tile:nth-child(2) { animation-delay: .1s; } .hc-tile:nth-child(3) { animation-delay: .2s; } .hc-tile:nth-child(4) { animation-delay: .3s; }
+  @keyframes hcIn { from { translate: 0 22px; } to { translate: 0 0; } }
+}
+/* Shop by bag type: one real photo + the live AVAILABLE count per type; tap filters the shop */
+.cat-row { padding: 48px 0 0; }
+.cat-row-title { font-family: var(--serif); font-size: 30px; font-weight: 600; margin-bottom: 16px; color: var(--ink); }
+.cat-row-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.cat-tile { min-width: 0; display: flex; flex-direction: column; align-items: stretch; background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 8px 8px 12px; cursor: pointer; font: inherit; color: var(--ink); text-align: left; transition: transform .2s, box-shadow .2s, border-color .2s; }
+.cat-tile:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: var(--gold); }
+.cat-tile img { width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; background: #f4f1ec; border-radius: 10px; }
+.cat-tile-name { font-weight: 700; font-size: 14.5px; margin: 10px 4px 0; overflow-wrap: anywhere; }
+.cat-tile-count { font-size: 12.5px; color: var(--ink-faint); margin: 2px 4px 0; }
+/* Tiles scroll to #shop: keep its heading clear of the sticky nav */
+#shop { scroll-margin-top: 48px; }
 
 .btn {
   display: inline-block;
@@ -808,7 +846,23 @@ img { max-width: 100%; display: block; }
   .nav-inner { padding: 6px 0; }
   .brand-logo { height: 56px; width: auto; }
 
-  .hero { padding: 56px 16px 64px; }
+  .hero { padding: 32px 16px 52px; }
+  .hero-inner { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .hero-collage { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; order: -1; max-width: none; }
+  .hc-tile { padding: 4px; border-radius: 12px; }
+  .hc-tile:nth-child(n) { transform: none; }
+  .hc-img { border-radius: 9px; }
+  .hc-price { left: 4px; bottom: 4px; font-size: 9.5px; padding: 2px 5px; }
+  .hero-blob--a { width: 340px; height: 340px; right: -140px; top: -80px; }
+  .hero-perks { gap: 8px 14px; margin-top: 22px; }
+  .hero-perks li { font-size: 12.5px; }
+  .perk-ic { width: 24px; height: 24px; font-size: 13px; }
+  .cat-row { padding: 32px 0 0; }
+  .cat-row-title { font-size: 24px; }
+  .cat-row-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .cat-tile { padding: 6px 6px 10px; border-radius: 12px; }
+  .cat-tile-name { font-size: 13px; margin: 8px 2px 0; }
+  .cat-tile-count { font-size: 11.5px; margin: 2px 2px 0; }
   .hero-eyebrow { font-size: 11px; letter-spacing: 0.25em; margin-bottom: 18px; }
   .hero-title { font-size: clamp(40px, 11vw, 60px); margin-bottom: 18px; }
   .hero-sub { font-size: 16px; margin-bottom: 28px; }
@@ -852,7 +906,7 @@ img { max-width: 100%; display: block; }
 @media (max-width: 380px) {
   .hero-title { font-size: 38px; }
   .hero-cta { flex-direction: column; }
-  .hero-cta .btn { width: 100%; }
+  .hero-cta .btn { width: 100%; text-align: center; }
 }
 
 /* ==========================================================
