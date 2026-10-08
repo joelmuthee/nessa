@@ -26,3 +26,20 @@ Bulk-bar action `⬆ Boost to top` stamps `boostedAt: ISO` on selected bags; on 
 "Check for new posts" fetches only posts newer than the shop has seen (`onlyPostsNewerThan`, KV
 `ig_newest_seen`), is capped at 2 a day (KV `apify_calls:<date>`), and tells the owner how many
 checks are left. Full rule: `CATALOG-STANDARDS.md` → Instagram bulk sync.
+
+## Hero shows real AVAILABLE bags + "Shop by bag type" row (2026-10-08)
+
+Joel approved Jirani Fashion's new hero and asked for it here too. Copy left; right, four real
+bags pulled live by `buildHeroCollage()` in `main.js`: **unsold only**, real price and photo,
+newest first, one per bag type in turn (Shoulder, Top Handle, Crossbody, Bucket at launch).
+Under it, `buildCatRow()`: one photo (a bag not already in the hero where possible) and the
+count of **available** bags per type. Tapping a tile sets the Available pill AND the type, so
+the number on the tile is what the buyer sees. Uncategorised bags are left out of the row.
+
+- **Kept dark on purpose.** The logo is gold script on black; the hero stays black with gold
+  glows instead of the light Jirani look. The page body below is already light.
+- **Perks come only from her own copy** (How to buy + footer): Pick up in Nairobi CBD ·
+  Delivery anywhere in Kenya · One of each, once it's gone it's gone. Delivery is at the
+  buyer's cost (settings `location`), so never write "free delivery".
+- Tile entrance moves position only, never opacity, so a stalled animation still shows them.
+- Not in a phone? The four photos sit in one row above the headline (Jirani rule).
