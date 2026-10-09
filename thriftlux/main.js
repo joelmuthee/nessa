@@ -115,7 +115,7 @@ const INSIGHTS_KEY = 'thriftlux_analytics'; // localStorage bucket consumed by a
   // worker's /share/<id> page, which serves OpenGraph tags (og:image =
   // the bag photo) so WhatsApp renders a rich preview card. A bare image
   // URL does NOT preview - WhatsApp only previews HTML pages with OG tags.
-  const SHARE_BASE = 'https://thriftlux-api.stawisystems.workers.dev/share/';
+  const SHARE_BASE = 'https://nessa.co.ke/share/'; // the worker is routed on nessa.co.ke/share/* (2026-10-09)
   // Plain enquiry text WITHOUT any trailing URL. Used both by whatsappLink
   // (which appends the OG share page) and by the Tier 1 native share sheet.
   function enquireBody(bag) {

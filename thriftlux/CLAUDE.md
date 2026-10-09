@@ -67,3 +67,8 @@ After any deploy check both titles: `/` must be "Nessa - Makeup, Styling, Thrift
 Regenerate with `tools/make_og.py` (usage in its header) when the pictured bags have long
 sold. All four image refs in `index.html` point at it (og, secure_url, twitter, JSON-LD).
 Per-bag previews are separate: the wa.me message links the worker `/share/<id>` page.
+
+## Short share links (2026-10-09)
+
+WhatsApp messages link `https://nessa.co.ke/share/<id>`: the thriftlux-api worker is routed on
+`nessa.co.ke/share/*` (`worker/wrangler.toml`) and `main.js` sets `SHARE_BASE` to it.

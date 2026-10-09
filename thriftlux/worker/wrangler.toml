@@ -3,6 +3,14 @@ main = "src/index.js"
 compatibility_date = "2025-01-01"
 account_id = "58685495706b973821d77208248c66fc"
 
+# Short product share links (2026-10-09): WhatsApp messages carry nessa.co.ke/share/<id>
+# instead of the long workers.dev address. Only /share/* goes to this worker; the rest
+# of nessa.co.ke stays on Pages. workers_dev stays on for the admin/API.
+workers_dev = true
+routes = [
+  { pattern = "nessa.co.ke/share/*", zone_name = "nessa.co.ke" }
+]
+
 [[kv_namespaces]]
 binding = "BAGS"
 id = "3da577dc31c9474f80394b53caeabbe8"
